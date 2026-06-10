@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack task spec",
+  "type": "object",
+  "required": ["task_id", "user_goal", "task_classification", "repo_context", "inferred_requirements", "non_goals", "assumptions", "rejected_alternatives", "risk_register", "acceptance_criteria", "rollback_plan"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "user_goal": {"type": "string"},
+    "task_classification": {"type": "object"},
+    "repo_context": {"type": "object"},
+    "inferred_requirements": {"type": "object"},
+    "non_goals": {"type": "array"},
+    "assumptions": {"type": "array"},
+    "rejected_alternatives": {"type": "array"},
+    "risk_register": {"type": "array"},
+    "acceptance_criteria": {"type": "array"},
+    "rollback_plan": {"type": "object"},
+    "worker_dispatch_summary": {"type": "object"},
+    "revision_meta": {"type": "object"}
+  },
+  "additionalProperties": true
+}

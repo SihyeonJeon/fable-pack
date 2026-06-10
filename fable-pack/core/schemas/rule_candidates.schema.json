@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack rule candidates",
+  "type": "object",
+  "required": ["task_id", "draft_queue"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "draft_queue": {"type": "array"}
+  },
+  "additionalProperties": true
+}

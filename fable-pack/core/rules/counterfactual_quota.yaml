@@ -1,0 +1,21 @@
+pack_version: 0.4-max
+probe_types:
+  - missing_context
+  - wrong_assumption
+  - scope_creep
+  - architecture_alternative
+  - misleading_similar_implementation
+  - regression_hidden_in_existing_behavior
+  - security_sensitive_adjacent_flow
+  - incomplete_test_signal
+HEAVY:
+  min_counterfactuals: 1
+  recommended: 2
+  required_types_any_of:
+    - scope_creep
+    - architecture_alternative
+    - regression_hidden_in_existing_behavior
+STANDARD:
+  corpus_task_type_minimum: 1
+LIGHT:
+  min_counterfactuals: 0

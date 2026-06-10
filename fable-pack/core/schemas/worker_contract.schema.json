@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack worker contract",
+  "type": "object",
+  "required": ["worker_id", "role", "objective", "source_task_spec", "must_read", "allowed_files", "forbidden_files", "must_preserve", "required_tests"],
+  "properties": {
+    "worker_id": {"type": "string"},
+    "role": {"type": "string"},
+    "objective": {"type": "string"},
+    "source_task_spec": {"type": "string"},
+    "must_read": {"type": "array"},
+    "allowed_files": {"type": "array"},
+    "forbidden_files": {"type": "array"},
+    "must_preserve": {"type": "array"},
+    "implementation_steps": {"type": "array"},
+    "required_tests": {"type": "array"},
+    "completion_report_required": {"type": "array"}
+  },
+  "additionalProperties": true
+}

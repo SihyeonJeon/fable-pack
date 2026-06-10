@@ -1,0 +1,65 @@
+pack_version: 0.4-max
+trace_root: fable-disk/trace
+runtime_scope:
+  enforce_only_when_model_id_contains: fable
+  unknown_model_behavior: no_record_no_enforce
+  bypass_env:
+    - PACK_BYPASS
+    - FABLE_PACK_BYPASS
+gates:
+  spec_gate:
+    applies_to: [STANDARD, HEAVY]
+    block_if:
+      - task_spec/final.yaml missing
+      - context_pack.yaml missing
+      - decision_events.jsonl missing
+      - observation_log.jsonl missing
+      - context_pack.must_read empty
+      - context_pack.similar_implementations empty and no_precedent_justification absent
+      - task_spec.repo_context.architectural_constraints empty
+      - rejected_alternatives count below grade quota
+      - HEAVY rejected_alternatives missing required categories
+      - high_or_blocking_risk_missing_mitigation
+      - acceptance_criteria missing concrete verification
+      - blocking_assumption_unresolved
+      - context_pack.must_read missing selected_by_decision_ref
+  context_gate:
+    applies_to: [STANDARD, HEAVY]
+    block_if:
+      - context_pack.must_read path lacks context_log event
+      - HEAVY must_read path lacks observation_log event
+      - architectural_constraints lack observation or decision evidence
+  plan_gate:
+    applies_to: [HEAVY]
+    block_if:
+      - plan_graph.json missing
+      - worker_contracts/*.yaml missing
+      - plan node missing acceptance_signal
+      - worker contract missing allowed_files or forbidden_files
+  done_gate:
+    applies_to: [STANDARD, HEAVY]
+    block_if:
+      - verifier_report.yaml missing
+      - acceptance criterion lacks verifier evidence
+      - acceptance evidence status is not_tested
+      - high_or_blocking_risk not covered
+      - forbidden file touched
+      - unplanned change lacks decision_event
+      - failed test command with approve verdict
+      - handoff.md missing
+  shadow_delta_gate:
+    applies_to: [HEAVY]
+    block_if:
+      - shadow/<fallback-model-id>/delta.yaml missing
+      - blocking omission lacks distillation_patch.yaml
+  corpus_quality_gate:
+    applies_to: [STANDARD, HEAVY]
+    block_golden_if:
+      - input_snapshot.yaml missing
+      - repo_snapshot.yaml missing
+      - context_log_status is UNVERIFIED
+      - bypass_events nonempty
+      - human_review.yaml missing
+      - human_review.rating in [flawed, rejected]
+      - shadow required but shadow delta missing
+      - counterfactual required but probe missing

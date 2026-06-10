@@ -1,0 +1,29 @@
+task_id: ""
+user_goal: ""
+task_classification:
+  primary_type: ""
+  secondary_types: []
+  complexity: medium
+  blast_radius: medium
+repo_context:
+  must_read: []
+  similar_implementations: []
+  architectural_constraints: []
+  critical_invariants: []
+inferred_requirements:
+  functional: []
+  non_functional: []
+  security: []
+  regression: []
+non_goals: []
+assumptions: []
+rejected_alternatives: []
+risk_register: []
+acceptance_criteria: []
+rollback_plan:
+  type: not_applicable
+  details: ""
+  evidence_ref: null
+worker_dispatch_summary:
+  workers_required: []
+  dispatch_blockers: []

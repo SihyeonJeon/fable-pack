@@ -1,0 +1,14 @@
+pack_version: 0.4-max
+HEAVY:
+  shadow_required: true
+  fallback_models:
+    - opus-4.8
+    - gpt-5.5-codex-if-used
+STANDARD:
+  shadow_required: false_per_task
+  quota:
+    task_type_minimum: 2
+    total_minimum_paired_shadow: 20
+    ambiguous_task_requires_shadow: true
+LIGHT:
+  shadow_required: false

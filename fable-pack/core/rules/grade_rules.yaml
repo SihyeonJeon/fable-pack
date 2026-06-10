@@ -1,0 +1,69 @@
+pack_version: 0.4-max
+grades:
+  LIGHT:
+    description: typo, lookup, single setting, or clear single-file change
+    required_artifacts:
+      - meta.yaml
+      - input_snapshot.yaml
+    golden_candidate: false
+  STANDARD:
+    description: normal feature/fix with one subsystem and low/medium regression risk
+    required_artifacts:
+      - meta.yaml
+      - input_snapshot.yaml
+      - repo_snapshot.yaml
+      - context_log.jsonl
+      - observation_log.jsonl
+      - decision_events.jsonl
+      - context_pack.yaml
+      - task_spec/final.yaml
+      - verifier_report.yaml
+      - handoff.md
+    rejected_alternatives_min: 2
+  HEAVY:
+    description: auth, permission, migration, billing, security, data loss, architecture, external integration, or multi-worker task
+    required_artifacts:
+      - all_STANDARD
+      - task_spec/00_initial.yaml
+      - task_spec/01_after_repo_scan.yaml
+      - task_spec/02_after_decision_review.yaml
+      - plan_graph.json
+      - worker_contracts/
+      - self_review.yaml
+      - human_review.yaml
+      - shadow/<fallback-model-id>/delta.yaml
+      - counterfactuals/*.yaml
+      - distillation_patch.yaml
+    rejected_alternatives_min: 3
+    required_rejected_categories:
+      - tempting_shortcut
+      - architecture_alternative
+      - scope_boundary_alternative
+auto_escalate_to_HEAVY_if:
+  task_keywords:
+    - auth
+    - authentication
+    - authorization
+    - permission
+    - billing
+    - payment
+    - migration
+    - schema
+    - external integration
+    - OAuth
+    - session
+    - security
+    - data deletion
+    - rollback
+  path_patterns:
+    - "**/auth/**"
+    - "**/billing/**"
+    - "**/migrations/**"
+    - "**/permissions/**"
+    - "**/security/**"
+    - "**/infra/**"
+  changed_files_threshold: 5
+  subsystem_count_threshold: 2
+  blast_radius:
+    - high
+    - blocking

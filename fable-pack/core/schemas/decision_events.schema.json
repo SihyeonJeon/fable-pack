@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack decision event",
+  "type": "object",
+  "required": ["seq", "ts", "phase", "event_type", "trigger", "decision", "artifact_updates"],
+  "properties": {
+    "seq": {"type": "integer"},
+    "ts": {"type": "string"},
+    "phase": {"enum": ["START", "SPEC", "CONTEXT", "PLAN", "IMPLEMENT", "VERIFY", "DONE"]},
+    "event_type": {"type": "string"},
+    "trigger": {"type": "string"},
+    "observation_refs": {"type": "array"},
+    "hypothesis_before": {"type": "string"},
+    "decision": {"type": "string"},
+    "rejected_options": {"type": "array"},
+    "confidence_before": {"enum": ["low", "medium", "high"]},
+    "confidence_after": {"enum": ["low", "medium", "high"]},
+    "next_expected_signal": {"type": "string"},
+    "artifact_updates": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}

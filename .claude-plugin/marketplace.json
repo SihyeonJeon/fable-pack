@@ -1,0 +1,13 @@
+{
+  "name": "fable-pack-marketplace",
+  "owner": {
+    "name": "jeonsihyeon"
+  },
+  "plugins": [
+    {
+      "name": "fable-pack",
+      "source": "./fable-pack",
+      "description": "Engineering decision-record keeper and quality-gate enforcer for Claude Code sessions"
+    }
+  ]
+}

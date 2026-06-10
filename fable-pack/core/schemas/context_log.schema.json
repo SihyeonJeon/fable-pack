@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack context log event",
+  "type": "object",
+  "required": ["seq", "ts", "event_type"],
+  "properties": {
+    "seq": {"type": "integer"},
+    "ts": {"type": "string"},
+    "event_type": {"type": "string"},
+    "path": {"type": "string"},
+    "tool_input": {"type": "object"},
+    "response_summary": {"type": "string"}
+  },
+  "additionalProperties": true
+}

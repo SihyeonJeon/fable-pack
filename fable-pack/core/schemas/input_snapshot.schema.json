@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack input snapshot",
+  "type": "object",
+  "required": ["task_id", "raw_user_goal", "normalized_goal", "prompt_stack", "model_settings", "tool_environment", "repo_input"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "raw_user_goal": {"type": "string"},
+    "normalized_goal": {"type": "string"},
+    "prompt_stack": {"type": "object"},
+    "model_settings": {"type": "object"},
+    "tool_environment": {"type": "object"},
+    "repo_input": {"type": "object"}
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,43 @@
+pack_version: 0.4-max
+auth_change:
+  seed_questions:
+    - What is the current auth source of truth?
+    - Which existing auth flows must be protected by regression tests?
+    - Does this touch session persistence?
+    - Does this alter route guard behavior?
+    - Which adjacent auth flows are explicit non-goals?
+permission_change:
+  seed_questions:
+    - Which roles, scopes, or policies are affected?
+    - What is the current authorization enforcement point?
+    - Does this alter backend enforcement or only UI visibility?
+    - What regression protects least-privilege behavior?
+    - What should remain forbidden?
+db_migration:
+  seed_questions:
+    - Is the migration backward compatible?
+    - Can old app code coexist with new schema for one deploy window?
+    - Is data backfill required?
+    - What is the rollback strategy?
+    - Which read/write paths are affected?
+external_integration:
+  seed_questions:
+    - Where are secrets configured?
+    - What retry, timeout, and idempotency policy applies?
+    - What failure modes must be surfaced to users?
+    - What mock or sandbox environment exists?
+    - What rate-limit or quota constraints exist?
+billing_change:
+  seed_questions:
+    - What revenue-impacting path is affected?
+    - What audit trail is required?
+    - What happens on partial failure?
+    - What refund, cancellation, or proration path is affected?
+    - What regression protects existing subscription states?
+refactor:
+  seed_questions:
+    - What behavior must remain byte-for-byte or contract-equivalent?
+    - What files are forbidden to change?
+    - What is the minimal diff boundary?
+    - What tests demonstrate no behavior change?
+    - What rollback path exists?

@@ -1,0 +1,340 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from pathlib import Path
+from typing import Any, Dict, List
+
+PACK_ROOT = Path(__file__).resolve().parents[3]
+LIB_ROOT = PACK_ROOT / "core" / "lib"
+sys.path.insert(0, str(LIB_ROOT))
+
+import compare  # noqa: E402
+import corpus  # noqa: E402
+import eventlib  # noqa: E402
+import snapshot  # noqa: E402
+import tracelib  # noqa: E402
+import validate  # noqa: E402
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="pack", description="fable-pack trace control CLI")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    on = sub.add_parser("on", help="start ambient recording (LIGHT trace: everything logged, no gate blocking)")
+    on.add_argument("--goal", default="ambient session recording")
+    on.add_argument("--task-type", default="ambient")
+    on.add_argument("--model", default="fable")
+
+    sub.add_parser("off", help="stop ambient recording and close the active task")
+
+    task = sub.add_parser("task", help="task lifecycle")
+    task_sub = task.add_subparsers(dest="task_command", required=True)
+
+    start = task_sub.add_parser("start", help="start a trace task")
+    start.add_argument("--goal", required=True)
+    start.add_argument("--grade", choices=tracelib.GRADES, default="STANDARD")
+    start.add_argument("--task-type", default="general")
+    start.add_argument("--id")
+    start.add_argument("--model", default=None)
+    start.add_argument("--allow-non-fable", action="store_true", help="allow fallback/shadow trace scaffolding")
+
+    task_sub.add_parser("status", help="show active task")
+
+    grade = task_sub.add_parser("grade", help="estimate grade from a goal")
+    grade.add_argument("--goal", required=True)
+
+    checkpoint = task_sub.add_parser("checkpoint", help="refresh snapshot and print gate status")
+    checkpoint.add_argument("--task-id")
+
+    done = task_sub.add_parser("done", help="run done gate and close the active task if it passes")
+    done.add_argument("--task-id")
+    done.add_argument("--force", action="store_true", help="close even when done gate fails")
+
+    log = sub.add_parser("log", help="append structured trace events")
+    log_sub = log.add_subparsers(dest="log_command", required=True)
+    obs = log_sub.add_parser("observation", help="append an observation event")
+    obs.add_argument("--path", required=True)
+    obs.add_argument("--fact", required=True)
+    obs.add_argument("--supports", action="append", default=[])
+    obs.add_argument("--changed-task-understanding", action="store_true")
+    dec = log_sub.add_parser("decision", help="append a decision event")
+    dec.add_argument("--phase", default="SPEC")
+    dec.add_argument("--event-type", required=True)
+    dec.add_argument("--trigger", required=True)
+    dec.add_argument("--decision", required=True)
+    dec.add_argument("--artifact-update", action="append", required=True)
+
+    val = sub.add_parser("validate", help="validate a task")
+    val.add_argument("--task-id")
+    val.add_argument("--gate", choices=["all", "spec", "context", "plan", "done", "corpus"], default="all")
+    val.add_argument("--json", action="store_true")
+
+    sub.add_parser("freeze", help="freeze active task artifacts")
+
+    shadow = sub.add_parser("shadow", help="shadow run utilities")
+    shadow_sub = shadow.add_subparsers(dest="shadow_command", required=True)
+    shadow_run = shadow_sub.add_parser("run", help="create a shadow delta from fallback trace")
+    shadow_run.add_argument("--task-id")
+    shadow_run.add_argument("--fallback-model", required=True)
+    shadow_run.add_argument("--fallback-trace", required=True)
+
+    counterfactual = sub.add_parser("counterfactual", help="counterfactual probe utilities")
+    cf_sub = counterfactual.add_subparsers(dest="counterfactual_command", required=True)
+    cf_run = cf_sub.add_parser("run", help="create a counterfactual probe")
+    cf_run.add_argument("--task-id")
+    cf_run.add_argument("--type", required=True)
+    cf_run.add_argument("--changed-user-goal")
+    cf_run.add_argument("--changed-context")
+    cf_run.add_argument("--injected-assumption")
+    cf_run.add_argument("--expected", action="append", default=[])
+    cf_run.add_argument("--actual-task-type", default="unknown")
+    cf_run.add_argument("--boundary-key", default="unknown")
+    cf_run.add_argument("--boundary-decision", default="pending")
+    cf_run.add_argument("--rule", default="pending")
+
+    corpus_cmd = sub.add_parser("corpus", help="corpus coverage and promotion")
+    corpus_cmd.add_argument("--write-report", action="store_true")
+    corpus_cmd.add_argument("--json", action="store_true")
+    corpus_sub = corpus_cmd.add_subparsers(dest="corpus_command")
+    promote = corpus_sub.add_parser("promote", help="promote a closed trace into the corpus")
+    promote.add_argument("--task-id")
+
+    args = parser.parse_args()
+    root = tracelib.project_root()
+
+    if args.command == "on":
+        tracelib.set_recording_mode("on", root)
+        active = tracelib.read_active(root)
+        if active:
+            print(f"recording ON (mode persisted): active task {active}")
+            return 0
+        task_path = tracelib.scaffold_task(
+            goal=args.goal,
+            grade="LIGHT",
+            task_type=args.task_type,
+            model_id=args.model,
+            root=root,
+        )
+        print(f"recording ON: {task_path.name}")
+        print("Everything is auto-logged. Prompts that look like real work auto-start a gated trace;")
+        print("casual prompts stay in the ambient LIGHT trace with no blocking.")
+        print("Turn off with `pack off`. State persists across sessions until then.")
+        return 0
+    if args.command == "off":
+        tracelib.set_recording_mode("off", root)
+        active = tracelib.read_active(root)
+        if not active:
+            print("recording already OFF")
+            return 0
+        task_path = tracelib.task_dir(active, root)
+        meta = tracelib.load_yaml(task_path / "meta.yaml")
+        meta["timestamp_end"] = tracelib.utc_now()
+        meta.setdefault("phase_transitions", []).append({"phase": "DONE", "ts": tracelib.utc_now()})
+        tracelib.write_yaml(task_path / "meta.yaml", meta)
+        tracelib.clear_active(root)
+        print(f"recording OFF: closed {active}")
+        return 0
+    if args.command == "task":
+        return handle_task(args, root)
+    if args.command == "log":
+        return handle_log(args, root)
+    if args.command == "validate":
+        return handle_validate(args, root)
+    if args.command == "freeze":
+        manifest = snapshot.freeze_task(root=root)
+        print(json.dumps({"frozen": manifest["task_id"], "artifact_count": len(manifest["artifacts"])}, indent=2))
+        return 0
+    if args.command == "shadow":
+        task_id = args.task_id or tracelib.read_active(root)
+        if not task_id:
+            print("No active task and no --task-id provided.", file=sys.stderr)
+            return 2
+        delta = compare.make_shadow_delta(task_id, args.fallback_model, args.fallback_trace, root)
+        print(json.dumps(delta["summary"], indent=2))
+        return 0
+    if args.command == "counterfactual":
+        return handle_counterfactual(args, root)
+    if args.command == "corpus":
+        if getattr(args, "corpus_command", None) == "promote":
+            task_id = args.task_id or tracelib.read_active(root)
+            if not task_id:
+                print("No active task and no --task-id provided.", file=sys.stderr)
+                return 2
+            try:
+                entry = corpus.promote(task_id, root)
+            except ValueError as exc:
+                print(f"promotion refused: {exc}", file=sys.stderr)
+                return 1
+            print(json.dumps(entry, indent=2, ensure_ascii=False))
+            return 0
+        report = corpus.coverage(root)
+        if args.write_report:
+            out = tracelib.corpus_root(root) / "coverage_report.md"
+            out.write_text(corpus.markdown_report(root), encoding="utf-8")
+        if args.json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(corpus.markdown_report(root))
+        return 0
+    return 2
+
+
+def handle_task(args: argparse.Namespace, root: Path) -> int:
+    if args.task_command == "start":
+        model_id = args.model or tracelib.model_id_from_sources()
+        if not tracelib.is_fable_model(model_id) and not args.allow_non_fable:
+            print(
+                "Refusing to start a reference trace because the resolved model is not Fable. "
+                "Use --model fable when Claude Code is pinned to /model fable, or --allow-non-fable for explicit shadow traces.",
+                file=sys.stderr,
+            )
+            return 2
+        task_path = tracelib.scaffold_task(
+            goal=args.goal,
+            grade=args.grade,
+            task_type=args.task_type,
+            task_id=args.id,
+            model_id=model_id,
+            root=root,
+        )
+        print(f"started {task_path.name}")
+        print(f"trace: {task_path}")
+        return 0
+    if args.task_command == "status":
+        active = tracelib.read_active(root)
+        if not active:
+            print("no active fable-pack task")
+            return 1
+        task_path = tracelib.task_dir(active, root)
+        meta = tracelib.load_yaml(task_path / "meta.yaml")
+        print(json.dumps({"active": active, "grade": meta.get("grade"), "task_type": meta.get("task_type"), "trace": str(task_path)}, indent=2))
+        return 0
+    if args.task_command == "grade":
+        print(tracelib.estimate_grade(args.goal))
+        return 0
+    if args.task_command == "checkpoint":
+        task_id = args.task_id or tracelib.read_active(root)
+        if not task_id:
+            print("No active task.", file=sys.stderr)
+            return 2
+        snapshot.refresh_repo_snapshot(task_id, root)
+        result = validate.validate_task(task_id, root, gate="all")
+        print_validation(result)
+        return 0 if result.ok else 1
+    if args.task_command == "done":
+        task_id = args.task_id or tracelib.read_active(root)
+        if not task_id:
+            print("No active task.", file=sys.stderr)
+            return 2
+        result = validate.validate_task(task_id, root, gate="done")
+        print_validation(result)
+        if result.ok or args.force:
+            task_path = tracelib.task_dir(task_id, root)
+            meta = tracelib.load_yaml(task_path / "meta.yaml")
+            meta["timestamp_end"] = tracelib.utc_now()
+            meta.setdefault("phase_transitions", []).append({"phase": "DONE", "ts": tracelib.utc_now()})
+            tracelib.write_yaml(task_path / "meta.yaml", meta)
+            if tracelib.read_active(root) == task_id:
+                tracelib.clear_active(root)
+            print(f"closed {task_id}")
+            return 0 if result.ok else 1
+        return 1
+    return 2
+
+
+def handle_log(args: argparse.Namespace, root: Path) -> int:
+    task_path = tracelib.task_dir(root=root)
+    if args.log_command == "observation":
+        event = tracelib.append_jsonl(
+            task_path / "observation_log.jsonl",
+            {
+                "source_event": "manual",
+                "path": args.path,
+                "symbols": [],
+                "extracted_facts": [
+                    {
+                        "fact": args.fact,
+                        "supports": args.supports,
+                        "confidence": "medium",
+                    }
+                ],
+                "changed_task_understanding": args.changed_task_understanding,
+                "caused_updates": args.supports,
+            },
+        )
+        print(json.dumps(event, indent=2))
+        return 0
+    if args.log_command == "decision":
+        event = eventlib.log_decision(
+            task_path,
+            phase=args.phase,
+            event_type=args.event_type,
+            trigger=args.trigger,
+            decision=args.decision,
+            artifact_updates=args.artifact_update,
+        )
+        print(json.dumps(event, indent=2))
+        return 0
+    return 2
+
+
+def handle_validate(args: argparse.Namespace, root: Path) -> int:
+    result = validate.validate_task(args.task_id, root, args.gate)
+    if args.json:
+        print(json.dumps({"ok": result.ok, "errors": result.errors, "warnings": result.warnings}, indent=2))
+    else:
+        print_validation(result)
+    return 0 if result.ok else 1
+
+
+def handle_counterfactual(args: argparse.Namespace, root: Path) -> int:
+    task_id = args.task_id or tracelib.read_active(root)
+    if not task_id:
+        print("No active task and no --task-id provided.", file=sys.stderr)
+        return 2
+    task_path = tracelib.task_dir(task_id, root)
+    probe_id = "probe-" + tracelib.utc_now().replace(":", "").replace("-", "").replace("Z", "z")
+    probe = {
+        "counterfactual_probe": {
+            "id": probe_id,
+            "base_task_id": task_id,
+            "perturbation": {
+                "type": args.type,
+                "changed_user_goal": args.changed_user_goal,
+                "changed_context": args.changed_context,
+                "injected_assumption": args.injected_assumption,
+            },
+            "expected_fable_behavior": args.expected,
+            "actual_fable_behavior": {
+                "task_type": args.actual_task_type,
+                "decision_boundary": {
+                    "key": args.boundary_key,
+                    "decision": args.boundary_decision,
+                },
+                "reason_refs": [],
+            },
+            "reusable_rule_candidate": {
+                "target": "gate",
+                "rule": args.rule,
+            },
+        }
+    }
+    tracelib.write_yaml(task_path / "counterfactuals" / f"{probe_id}.yaml", probe)
+    print(json.dumps({"created": probe_id}, indent=2))
+    return 0
+
+
+def print_validation(result: validate.ValidationResult) -> None:
+    print("ok:" if result.ok else "failed:")
+    for error in result.errors:
+        print(f"  ERROR {error}")
+    for warning in result.warnings:
+        print(f"  WARN  {warning}")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

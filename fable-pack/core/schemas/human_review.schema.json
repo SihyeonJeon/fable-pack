@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack human review",
+  "type": "object",
+  "required": ["task_id", "rating", "critical_omissions_found", "over_scoping_found", "under_scoping_found"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "reviewer": {"type": ["string", "null"]},
+    "review_date": {"type": ["string", "null"]},
+    "rating": {"enum": ["exemplary", "normal", "flawed", "rejected", null]},
+    "critical_omissions_found": {"type": "array"},
+    "over_scoping_found": {"type": "array"},
+    "under_scoping_found": {"type": "array"},
+    "fable_specific_strengths": {"type": "array"},
+    "should_become_few_shot": {"type": "boolean"},
+    "should_become_playbook_rule": {"type": "boolean"},
+    "should_become_gate_rule": {"type": "boolean"},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": true
+}

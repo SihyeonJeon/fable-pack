@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack meta",
+  "type": "object",
+  "required": ["task_id", "pack_version", "model", "environment", "grade", "task_type", "timestamp_start"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "pack_version": {"const": "0.4-max"},
+    "model": {
+      "type": "object",
+      "required": ["provider", "model_id", "role"],
+      "properties": {
+        "provider": {"enum": ["anthropic", "openai", "other"]},
+        "model_id": {"type": "string"},
+        "role": {"enum": ["fable_reference", "fallback_shadow", "worker", "verifier", "reviewer"]}
+      },
+      "additionalProperties": true
+    },
+    "environment": {"enum": ["harness", "claude-code", "instruction"]},
+    "context_log_status": {"enum": ["VERIFIED", "UNVERIFIED"]},
+    "grade": {"enum": ["LIGHT", "STANDARD", "HEAVY"]},
+    "task_type": {"type": "string"},
+    "commit": {"type": "string"},
+    "branch": {"type": "string"},
+    "timestamp_start": {"type": "string"},
+    "timestamp_end": {"type": ["string", "null"]},
+    "phase_transitions": {"type": "array"},
+    "golden_rating": {"enum": ["exemplary", "normal", "flawed", "rejected", null]},
+    "human_label_status": {"enum": ["pending", "complete", "not_required"]},
+    "bypass_events": {"type": "array"}
+  },
+  "additionalProperties": true
+}

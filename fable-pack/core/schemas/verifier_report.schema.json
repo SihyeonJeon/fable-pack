@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack verifier report",
+  "type": "object",
+  "required": ["task_id", "changed_files", "forbidden_file_check", "acceptance_evidence", "risk_coverage", "test_commands", "unplanned_changes", "verdict"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "changed_files": {"type": "array"},
+    "forbidden_file_check": {"type": "object"},
+    "acceptance_evidence": {"type": "array"},
+    "risk_coverage": {"type": "array"},
+    "test_commands": {"type": "array"},
+    "unplanned_changes": {"type": "array"},
+    "verdict": {"enum": ["approve", "request_changes", "block"]}
+  },
+  "additionalProperties": true
+}

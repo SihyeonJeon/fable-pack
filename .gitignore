@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store
+fable-disk/
+
+# internal ideation docs — local only
+concept.md
+fable-pack-build-spec*.md

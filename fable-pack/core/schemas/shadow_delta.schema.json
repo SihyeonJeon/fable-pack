@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack shadow delta",
+  "type": "object",
+  "required": ["base_task_id", "fable_trace_ref", "fallback_model_id", "fallback_trace_ref", "missed_by_fallback", "stronger_in_fallback", "summary"],
+  "properties": {
+    "base_task_id": {"type": "string"},
+    "fable_trace_ref": {"type": "string"},
+    "fallback_model_id": {"type": "string"},
+    "fallback_trace_ref": {"type": "string"},
+    "missed_by_fallback": {"type": "array"},
+    "stronger_in_fallback": {"type": "array"},
+    "summary": {"type": "object"}
+  },
+  "additionalProperties": true
+}

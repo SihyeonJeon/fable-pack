@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack distillation patch",
+  "type": "object",
+  "required": ["task_id", "source", "patches"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "source": {"type": "object"},
+    "patches": {
+      "type": "object",
+      "required": ["schema", "gate_rules", "playbook_rules", "examples", "invariants"],
+      "properties": {
+        "schema": {"type": "array"},
+        "gate_rules": {"type": "array"},
+        "playbook_rules": {"type": "array"},
+        "examples": {"type": "array"},
+        "invariants": {"type": "array"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack observation event",
+  "type": "object",
+  "required": ["seq", "ts", "source_event", "path", "extracted_facts", "changed_task_understanding", "caused_updates"],
+  "properties": {
+    "seq": {"type": "integer"},
+    "ts": {"type": "string"},
+    "source_event": {"type": "string"},
+    "path": {"type": "string"},
+    "symbols": {"type": "array", "items": {"type": "string"}},
+    "extracted_facts": {"type": "array"},
+    "changed_task_understanding": {"type": "boolean"},
+    "caused_updates": {"type": "array"}
+  },
+  "additionalProperties": true
+}

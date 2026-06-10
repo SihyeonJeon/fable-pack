@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack repo snapshot",
+  "type": "object",
+  "required": ["commit", "branch", "status", "diff_hash_before", "diff_hash_after", "important_paths", "lockfiles"],
+  "properties": {
+    "commit": {"type": "string"},
+    "branch": {"type": "string"},
+    "status": {"type": "string"},
+    "diff_hash_before": {"type": "string"},
+    "diff_hash_after": {"type": ["string", "null"]},
+    "important_paths": {"type": "array"},
+    "lockfiles": {"type": "array"}
+  },
+  "additionalProperties": true
+}

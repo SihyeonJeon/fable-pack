@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack counterfactual probe",
+  "type": "object",
+  "required": ["counterfactual_probe"],
+  "properties": {
+    "counterfactual_probe": {
+      "type": "object",
+      "required": ["id", "base_task_id", "perturbation", "expected_fable_behavior", "actual_fable_behavior", "reusable_rule_candidate"],
+      "properties": {
+        "id": {"type": "string"},
+        "base_task_id": {"type": "string"},
+        "perturbation": {"type": "object"},
+        "expected_fable_behavior": {"type": "array"},
+        "actual_fable_behavior": {"type": "object"},
+        "reusable_rule_candidate": {"type": "object"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

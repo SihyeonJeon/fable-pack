@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack self review",
+  "type": "object",
+  "required": ["initial_vs_final_understanding", "missed_or_weak_items", "potential_worker_confusions"],
+  "properties": {
+    "initial_vs_final_understanding": {"type": "object"},
+    "missed_or_weak_items": {"type": "array"},
+    "potential_worker_confusions": {"type": "array"}
+  },
+  "additionalProperties": true
+}

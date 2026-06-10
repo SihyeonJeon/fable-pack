@@ -1,0 +1,18 @@
+pack_version: 0.4-max
+verification_phrases:
+  - 동작 확인
+  - 잘 되는지 확인
+  - 테스트 필요
+  - 수동 검증
+  - 확인 예정
+  - works
+  - check manually
+  - manual verification
+  - verify it works
+trace_phrases:
+  - use best practices
+  - follow existing patterns
+  - should be fine
+  - probably okay
+  - TBD
+  - TODO

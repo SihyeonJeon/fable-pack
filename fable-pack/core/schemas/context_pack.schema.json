@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack context pack",
+  "type": "object",
+  "required": ["task_id", "task_type", "must_read", "should_read", "similar_implementations"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "task_type": {"type": "string"},
+    "must_read": {"type": "array"},
+    "should_read": {"type": "array"},
+    "similar_implementations": {"type": "array"},
+    "conventions": {"type": "array"},
+    "known_hazards": {"type": "array"},
+    "forbidden_context_shortcuts": {"type": "array"},
+    "no_precedent_justification": {"type": ["string", "null"]}
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack handoff",
+  "type": "object",
+  "required": ["task_id", "summary", "changed_files", "verification", "open_risks"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "summary": {"type": "string"},
+    "changed_files": {"type": "array"},
+    "verification": {"type": "array"},
+    "open_risks": {"type": "array"}
+  },
+  "additionalProperties": true
+}

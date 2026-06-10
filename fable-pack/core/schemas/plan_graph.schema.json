@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fable-pack plan graph",
+  "type": "object",
+  "required": ["task_id", "nodes", "edges"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "nodes": {"type": "array"},
+    "edges": {"type": "array"},
+    "forbidden_parallelism": {"type": "array"}
+  },
+  "additionalProperties": true
+}
