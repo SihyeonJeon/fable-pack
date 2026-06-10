@@ -1,9 +1,38 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
+
 import common
 import eventlib
 import tracelib
+
+TOGGLE_COMMANDS = {"/fable-pack:on": "on", "/fable-pack:off": "off"}
+
+
+def handle_toggle(prompt: str, root) -> bool:
+    """Intercept on/off as a pure toggle: block the prompt before it reaches
+    the model and surface only a notification."""
+    mode = TOGGLE_COMMANDS.get(prompt.strip())
+    if mode is None:
+        return False
+    tracelib.set_recording_mode(mode, root)
+    if mode == "on":
+        message = "fable-pack: recording ON — the first Fable prompt starts the trace (off with /fable-pack:off)"
+    else:
+        active = tracelib.read_active(root)
+        if active:
+            task_path = tracelib.task_dir(active, root)
+            meta = tracelib.load_yaml(task_path / "meta.yaml")
+            meta["timestamp_end"] = tracelib.utc_now()
+            meta.setdefault("phase_transitions", []).append({"phase": "DONE", "ts": tracelib.utc_now()})
+            tracelib.write_yaml(task_path / "meta.yaml", meta)
+            tracelib.clear_active(root)
+            message = f"fable-pack: recording OFF — closed {active}"
+        else:
+            message = "fable-pack: recording OFF"
+    print(json.dumps({"decision": "block", "reason": message}))
+    return True
 
 
 def main() -> int:
@@ -13,6 +42,8 @@ def main() -> int:
     root = common.project_root()
     prompt = str(payload.get("prompt") or "")
     if not prompt.strip():
+        return 0
+    if handle_toggle(prompt, root):
         return 0
 
     # While recording is ON, manage the active task automatically: keep an

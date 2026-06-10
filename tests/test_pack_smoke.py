@@ -877,6 +877,30 @@ class PackSmokeTests(unittest.TestCase):
                 os.environ["CLAUDE_PROJECT_DIR"] = old_claude
             os.environ["FABLE_PACK_PROJECT_ROOT"] = str(self.tmp)
 
+    def test_prompt_hook_intercepts_on_off_toggle(self) -> None:
+        tracelib.ensure_disk(self.tmp)
+        result = self._run_hook("user_prompt_submit.py", {"prompt": "/fable-pack:on"})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        control = json.loads(result.stdout)
+        self.assertEqual(control["decision"], "block")
+        self.assertIn("recording ON", control["reason"])
+        self.assertEqual(tracelib.recording_mode(self.tmp), "on")
+        # toggle alone creates no trace
+        self.assertFalse((self.tmp / "fable-disk" / "trace" / "ACTIVE").exists())
+
+        # a normal prompt is NOT blocked and starts the ambient trace
+        normal = self._run_hook("user_prompt_submit.py", {"prompt": "이 함수 설명해봐"})
+        self.assertEqual(normal.returncode, 0, normal.stderr)
+        self.assertNotIn("block", normal.stdout)
+        active = (self.tmp / "fable-disk" / "trace" / "ACTIVE").read_text().strip()
+
+        off = self._run_hook("user_prompt_submit.py", {"prompt": "/fable-pack:off"})
+        control = json.loads(off.stdout)
+        self.assertEqual(control["decision"], "block")
+        self.assertIn(active, control["reason"])
+        self.assertEqual(tracelib.recording_mode(self.tmp), "off")
+        self.assertFalse((self.tmp / "fable-disk" / "trace" / "ACTIVE").exists())
+
     def test_cli_refuses_non_fable_reference_trace(self) -> None:
         script = ROOT / "fable-pack" / "adapters" / "claude-code" / "scripts" / "pack"
         env = os.environ.copy()
