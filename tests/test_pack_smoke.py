@@ -201,6 +201,24 @@ class PackSmokeTests(unittest.TestCase):
         events = (task_path / "decision_events.jsonl").read_text(encoding="utf-8")
         self.assertNotIn("\\u", events.split("ts")[0])
 
+    def _make_done_passing(self, task_path) -> None:
+        """Upgrade a scaffolded trace so the (stricter) done gate passes."""
+        spec = tracelib.load_yaml(task_path / "task_spec" / "final.yaml")
+        spec["acceptance_criteria"] = [
+            {"criterion": "tests pass", "verification": {"type": "command", "value": "python3 -m unittest"}}
+        ]
+        spec["risk_register"] = [
+            {"id": "r-main", "risk": "regression in main flow", "severity": "high", "mitigation": "run suite"}
+        ]
+        tracelib.write_yaml(task_path / "task_spec" / "final.yaml", spec)
+        report = tracelib.load_yaml(task_path / "verifier_report.yaml")
+        report["verdict"] = "approve"
+        report["acceptance_evidence"] = [
+            {"criterion": "tests pass", "status": "pass", "evidence_ref": "command_log:seq=1"}
+        ]
+        report["risk_coverage"] = [{"risk_id": "r-main", "covered": True, "evidence_ref": "command_log:seq=1"}]
+        tracelib.write_yaml(task_path / "verifier_report.yaml", report)
+
     def test_corpus_promote_golden(self) -> None:
         task_path = tracelib.scaffold_task(
             goal="add audited feature",
@@ -213,9 +231,7 @@ class PackSmokeTests(unittest.TestCase):
         review = tracelib.load_yaml(task_path / "human_review.yaml")
         review["rating"] = "normal"
         tracelib.write_yaml(task_path / "human_review.yaml", review)
-        report = tracelib.load_yaml(task_path / "verifier_report.yaml")
-        report["verdict"] = "approve"
-        tracelib.write_yaml(task_path / "verifier_report.yaml", report)
+        self._make_done_passing(task_path)
         entry = corpus.promote("smoke-promote", self.tmp)
         self.assertEqual(entry["bucket"], "fable_golden")
         dest = self.tmp / "fable-disk" / "corpus" / "fable_golden" / "smoke-promote"
@@ -396,9 +412,14 @@ class PackSmokeTests(unittest.TestCase):
         on = run("on")
         self.assertEqual(on.returncode, 0, on.stderr)
         self.assertIn("recording ON", on.stdout)
+        # mode-only: no trace until the first Fable prompt arrives via hook
+        self.assertEqual(tracelib.recording_mode(self.tmp), "on")
+        self.assertFalse((self.tmp / "fable-disk" / "trace" / "ACTIVE").exists())
+
+        started = tracelib.ensure_prompt_task(self.tmp, "잡담입니다", "claude-fable-5")
+        self.assertEqual(started["grade"], "LIGHT")
         active = (self.tmp / "fable-disk" / "trace" / "ACTIVE").read_text().strip()
         meta = tracelib.load_yaml(self.tmp / "fable-disk" / "trace" / active / "meta.yaml")
-        self.assertEqual(meta["grade"], "LIGHT")
         self.assertEqual(meta["task_type"], "ambient")
 
         again = run("on")
@@ -704,6 +725,120 @@ class PackSmokeTests(unittest.TestCase):
         self.assertIn("로그인", prompt_entries[0]["summary"])
         decide_only = [e for e in tracelib.timeline("smoke-timeline", self.tmp) if e["kind"] == "DECIDE"]
         self.assertTrue(any("(todo)" in e["summary"] for e in decide_only))
+
+    def test_done_gate_requires_approve_verdict(self) -> None:
+        task_path = tracelib.scaffold_task(
+            goal="verdict check",
+            grade="STANDARD",
+            task_type="feature",
+            task_id="smoke-verdict",
+            model_id="fable",
+            root=self.tmp,
+        )
+        self._make_done_passing(task_path)
+        report = tracelib.load_yaml(task_path / "verifier_report.yaml")
+        report["verdict"] = "request_changes"
+        tracelib.write_yaml(task_path / "verifier_report.yaml", report)
+        result = validate.done_gate(task_path, self.tmp)
+        self.assertTrue(any("verdict must be approve" in error for error in result.errors))
+
+    def test_done_gate_closes_spec_risk_loop(self) -> None:
+        task_path = tracelib.scaffold_task(
+            goal="risk loop check",
+            grade="STANDARD",
+            task_type="feature",
+            task_id="smoke-riskloop",
+            model_id="fable",
+            root=self.tmp,
+        )
+        self._make_done_passing(task_path)
+        spec = tracelib.load_yaml(task_path / "task_spec" / "final.yaml")
+        spec["risk_register"].append(
+            {"id": "r-oauth", "risk": "OAuth callback regression", "severity": "blocking", "mitigation": "regression test"}
+        )
+        tracelib.write_yaml(task_path / "task_spec" / "final.yaml", spec)
+        result = validate.done_gate(task_path, self.tmp)
+        self.assertTrue(any("r-oauth" in error for error in result.errors))
+        report = tracelib.load_yaml(task_path / "verifier_report.yaml")
+        report["risk_coverage"].append({"risk_id": "r-oauth", "covered": True, "evidence_ref": "command_log:seq=2"})
+        tracelib.write_yaml(task_path / "verifier_report.yaml", report)
+        result = validate.done_gate(task_path, self.tmp)
+        self.assertTrue(result.ok, result.errors)
+
+    def test_contract_edit_gate_cross_checks_edit_log(self) -> None:
+        task_path = tracelib.scaffold_task(
+            goal="contract check",
+            grade="HEAVY",
+            task_type="auth_change",
+            task_id="smoke-contract",
+            model_id="fable",
+            root=self.tmp,
+        )
+        tracelib.write_yaml(task_path / "worker_contracts" / "w1.yaml", {
+            "worker_contract": {
+                "scope": {"allowed_files": ["src/auth/*"], "forbidden_files": ["config/secrets.yaml"]},
+            }
+        })
+        eventlib.log_edit(task_path, "Edit", {"file_path": "src/auth/login.py"}, allowed=True)
+        eventlib.log_edit(task_path, "Edit", {"file_path": "config/secrets.yaml"}, allowed=True)
+        eventlib.log_edit(task_path, "Edit", {"file_path": "src/other/stray.py"}, allowed=True)
+        report = {"unplanned_changes": []}
+        result = validate.contract_edit_gate(task_path, self.tmp, report)
+        errors = "\n".join(result.errors)
+        self.assertIn("contract-forbidden file: config/secrets.yaml", errors)
+        self.assertIn("outside contract allowed_files", errors)
+        self.assertNotIn("src/auth/login.py", errors)
+        report = {"unplanned_changes": [{"path": "src/other/stray.py", "has_decision_event": True}]}
+        result = validate.contract_edit_gate(task_path, self.tmp, report)
+        self.assertNotIn("stray.py", "\n".join(result.errors))
+
+    def test_meta_records_version_triple(self) -> None:
+        task_path = tracelib.scaffold_task(
+            goal="version check",
+            grade="LIGHT",
+            task_type="ambient",
+            task_id="smoke-versions",
+            model_id="fable",
+            root=self.tmp,
+        )
+        meta = tracelib.load_yaml(task_path / "meta.yaml")
+        self.assertEqual(meta["versions"]["runtime"], tracelib.PACK_VERSION)
+        self.assertEqual(meta["versions"]["protocol"], tracelib.PROTOCOL_VERSION)
+
+    def test_shadow_delta_flags_weak_coverage(self) -> None:
+        import compare
+
+        base = tracelib.scaffold_task(
+            goal="implement oauth flow",
+            grade="HEAVY",
+            task_type="auth_change",
+            task_id="smoke-weak",
+            model_id="fable",
+            root=self.tmp,
+        )
+        spec = tracelib.load_yaml(base / "task_spec" / "final.yaml")
+        spec["risk_register"] = [
+            {"id": "r1", "risk": "OAuth callback regression breaks login", "severity": "high", "mitigation": "regression"},
+            {"id": "r2", "risk": "session expiry mismatch", "severity": "high", "mitigation": "ttl test"},
+        ]
+        tracelib.write_yaml(base / "task_spec" / "final.yaml", spec)
+        fallback_dir = self.tmp / "fallback-trace"
+        (fallback_dir / "task_spec").mkdir(parents=True)
+        tracelib.write_yaml(fallback_dir / "task_spec" / "final.yaml", {
+            "task_classification": {"primary_type": "auth_change"},
+            "risk_register": [{"id": "x", "risk": "session expiry mismatch", "severity": "high"}],
+            "non_goals": ["styling"],
+            "rejected_alternatives": [{"category": "tempting_shortcut", "alternative": "skip tests"}],
+            "acceptance_criteria": [{"criterion": "login works end to end"}],
+            "inferred_requirements": {"functional": [{"requirement": "login"}]},
+            "repo_context": {"architectural_constraints": [{"constraint": "keep middleware order"}]},
+        })
+        delta = compare.make_shadow_delta("smoke-weak", "claude-opus-4-8", str(fallback_dir), self.tmp)
+        weak_texts = "\n".join(str(item) for item in delta["missed_by_fallback"])
+        self.assertIn("OAuth callback regression", weak_texts)
+        self.assertNotIn("session expiry mismatch", "\n".join(
+            str(i) for i in delta["missed_by_fallback"] if str(i.get("id", "")).startswith("weak_risk_register")
+        ))
 
     def test_cli_refuses_non_fable_reference_trace(self) -> None:
         script = ROOT / "fable-pack" / "adapters" / "claude-code" / "scripts" / "pack"

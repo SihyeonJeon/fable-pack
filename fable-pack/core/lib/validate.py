@@ -244,6 +244,9 @@ def done_gate(task_path: Path, root: Path) -> ValidationResult:
     if not result.ok:
         return result
 
+    if report.get("verdict") != "approve":
+        result.fail(f"done_gate: verifier_report.verdict must be approve, got: {report.get('verdict')}")
+
     criteria = spec.get("acceptance_criteria") or []
     if not criteria:
         result.fail("done_gate: acceptance_criteria is empty; nothing can be verified.")
@@ -258,6 +261,21 @@ def done_gate(task_path: Path, root: Path) -> ValidationResult:
     for risk in report.get("risk_coverage") or []:
         if risk.get("risk") and risk.get("covered") is False:
             result.fail(f"done_gate: risk is not covered: {risk.get('risk')}")
+
+    # Close the loop: every high/blocking risk the spec identified must be
+    # affirmatively covered in the verifier report, not merely "not denied".
+    covered_keys: Set[str] = set()
+    for item in report.get("risk_coverage") or []:
+        if item.get("covered") is True:
+            for key in (item.get("risk_id"), item.get("risk")):
+                if key:
+                    covered_keys.add(str(key))
+    for risk in spec.get("risk_register") or []:
+        if risk.get("severity") not in ("high", "blocking"):
+            continue
+        keys = {str(k) for k in (risk.get("id"), risk.get("risk")) if k}
+        if not keys & covered_keys:
+            result.fail(f"done_gate: high/blocking spec risk lacks verifier coverage: {risk.get('id') or risk.get('risk')}")
     if report.get("forbidden_file_check", {}).get("touched_forbidden_file"):
         result.fail("done_gate: forbidden file was touched.")
     for change in report.get("unplanned_changes") or []:
@@ -271,6 +289,47 @@ def done_gate(task_path: Path, root: Path) -> ValidationResult:
             result.fail("done_gate: HEAVY requires shadow/<fallback-model-id>/delta.yaml.")
         if not list((task_path / "counterfactuals").glob("*.yaml")):
             result.fail("done_gate: HEAVY requires at least one counterfactual probe.")
+        result.extend(contract_edit_gate(task_path, root, report))
+    return result
+
+
+def contract_edit_gate(task_path: Path, root: Path, report: Dict[str, Any]) -> ValidationResult:
+    """Deterministically cross-check the actual edit log against worker
+    contracts instead of trusting the verifier's self-report."""
+    import fnmatch
+
+    result = ValidationResult()
+    allowed: List[str] = []
+    forbidden: List[str] = []
+    for contract_path in sorted((task_path / "worker_contracts").glob("*.yaml")):
+        contract = tracelib.load_yaml(contract_path)
+        body = contract.get("worker_contract", contract)
+        if not isinstance(body, dict):
+            continue
+        scope = body.get("scope", body) if isinstance(body.get("scope", body), dict) else body
+        allowed += [str(p) for p in (scope.get("allowed_files") or body.get("allowed_files") or [])]
+        forbidden += [str(p) for p in (scope.get("forbidden_files") or body.get("forbidden_files") or [])]
+    if not allowed and not forbidden:
+        return result
+
+    def matches(path: str, patterns: List[str]) -> bool:
+        return any(fnmatch.fnmatch(path, pattern) for pattern in patterns)
+
+    unplanned_ok = {
+        normalize_path(change.get("path", ""), root)
+        for change in report.get("unplanned_changes") or []
+        if change.get("has_decision_event")
+    }
+    edits = {
+        normalize_path(event.get("path", ""), root)
+        for event in tracelib.read_jsonl(task_path / "edit_log.jsonl")
+        if event.get("path")
+    }
+    for path in sorted(edits):
+        if matches(path, forbidden):
+            result.fail(f"done_gate: edit touched contract-forbidden file: {path}")
+        elif allowed and not matches(path, allowed) and path not in unplanned_ok:
+            result.fail(f"done_gate: edit outside contract allowed_files without decision event: {path}")
     return result
 
 
@@ -287,6 +346,10 @@ def corpus_quality_gate(task_path: Path) -> ValidationResult:
         result.fail("corpus_quality_gate: bypassed trace cannot enter golden corpus.")
     grade = meta.get("grade", "STANDARD")
     if grade != "LIGHT":
+        # A golden candidate must hold up as a finished task, not merely look
+        # complete: run the full done gate as part of promotion.
+        project_root = task_path.parents[2] if len(task_path.parents) > 2 else task_path.parent
+        result.extend(done_gate(task_path, project_root))
         report = required_yaml(task_path / "verifier_report.yaml", result)
         if report.get("verdict") != "approve":
             result.fail(f"corpus_quality_gate: verifier verdict must be approve, got: {report.get('verdict')}")

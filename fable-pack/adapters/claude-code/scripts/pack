@@ -24,10 +24,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(prog="pack", description="fable-pack trace control CLI")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    on = sub.add_parser("on", help="start ambient recording (LIGHT trace: everything logged, no gate blocking)")
-    on.add_argument("--goal", default="ambient session recording")
-    on.add_argument("--task-type", default="ambient")
-    on.add_argument("--model", default="fable")
+    sub.add_parser("on", help="turn recording mode on (trace starts at the first Fable prompt)")
 
     sub.add_parser("off", help="stop ambient recording and close the active task")
 
@@ -121,21 +118,16 @@ def main() -> int:
     root = tracelib.project_root()
 
     if args.command == "on":
+        # Mode flag only: the trace itself is created by the first Fable
+        # UserPromptSubmit hook, so a non-Fable session can never seed
+        # fable-disk traces through this CLI path.
         tracelib.set_recording_mode("on", root)
         active = tracelib.read_active(root)
         if active:
             print(f"recording ON (mode persisted): active task {active}")
             return 0
-        task_path = tracelib.scaffold_task(
-            goal=args.goal,
-            grade="LIGHT",
-            task_type=args.task_type,
-            model_id=args.model,
-            root=root,
-        )
-        print(f"recording ON: {task_path.name}")
-        print("Everything is auto-logged. Prompts that look like real work auto-start a gated trace;")
-        print("casual prompts stay in the ambient LIGHT trace with no blocking.")
+        print("recording ON. The first Fable prompt starts the trace automatically:")
+        print("casual prompts stay in an ambient LIGHT trace; work-shaped prompts start a gated trace.")
         print("Turn off with `pack off`. State persists across sessions until then.")
         return 0
     if args.command == "off":

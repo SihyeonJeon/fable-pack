@@ -9,6 +9,4 @@ While ON:
 - Casual prompts stay in an ambient LIGHT trace with no blocking.
 - Prompts that look like real work (implementation, refactor, auth/payment/migration, ...) automatically start a gated STANDARD/HEAVY trace: implementation edits are blocked until `context_pack.yaml`, `task_spec/final.yaml`, decision events, and observations are filled.
 
-The state persists across sessions until `/fable-pack:off`.
-
-If the user supplied a goal in $ARGUMENTS, pass it: `pack on --goal "$ARGUMENTS"`.
+The state persists across sessions until `/fable-pack:off`. The trace itself starts at the first Fable prompt after turning on; non-Fable sessions never create traces.

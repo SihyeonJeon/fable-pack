@@ -68,6 +68,31 @@ def make_shadow_delta(
     for category, dotted in COMPARISON_FIELDS:
         fable_value = get_dotted(fable_spec, dotted)
         fallback_value = get_dotted(fallback_spec, dotted)
+        # Both sides present: detect items the comparison trace covered only
+        # weakly (no keyword overlap with the reference item), not just
+        # whole-section omissions.
+        if has_content(fable_value) and has_content(fallback_value):
+            for idx, item in enumerate(weak_items(fable_value, fallback_value)):
+                missed.append(
+                    {
+                        "id": f"weak_{category}_{idx}",
+                        "category": taxonomy_for(category),
+                        "fable_item": {"artifact": f"task_spec.final.{dotted}", "text": summarize(item)},
+                        "fallback_missing_or_weak_item": {
+                            "artifact": f"task_spec.final.{dotted}",
+                            "text": "no fallback item shares keywords with this reference item",
+                        },
+                        "likely_failure": [f"Fallback covers {category} but misses this specific concern."],
+                        "severity": "medium",
+                        "convert_to": {
+                            "schema_field": f"task_spec.{dotted}",
+                            "gate_rule": "spec_gate",
+                            "playbook_rule": None,
+                            "invariant": None,
+                            "example": {"type": "good", "name": f"{base_task_id}_{category}_{idx}"},
+                        },
+                    }
+                )
         if has_content(fable_value) and not has_content(fallback_value):
             missed.append(
                 {
@@ -128,6 +153,47 @@ def omission_to_rule_patch(delta: Dict[str, Any]) -> Dict[str, Any]:
             "invariants": [],
         },
     }
+
+
+_STOPWORDS = {
+    "the", "and", "for", "with", "that", "this", "from", "must", "should",
+    "will", "when", "into", "have", "been", "are", "not", "all", "any",
+    # generic enum values shared by schema fields, not content
+    "high", "medium", "low", "blocking", "pending", "true", "false", "none",
+}
+
+
+def _content_text(value: Any) -> str:
+    """Flatten to comparable content: dict VALUES only — keys are shared
+    schema vocabulary and would create false overlap."""
+    if isinstance(value, dict):
+        return " ".join(_content_text(v) for v in value.values())
+    if isinstance(value, list):
+        return " ".join(_content_text(v) for v in value)
+    return str(value)
+
+
+def _keywords(value: Any) -> set:
+    import re as _re
+
+    text = _content_text(value).lower()
+    return {token for token in _re.findall(r"[a-z가-힣_]{3,}", text) if token not in _STOPWORDS}
+
+
+def weak_items(fable_value: Any, fallback_value: Any) -> List[Any]:
+    """Reference items with zero keyword overlap against every fallback item."""
+    if not isinstance(fable_value, list):
+        return []
+    fallback_items = fallback_value if isinstance(fallback_value, list) else [fallback_value]
+    fallback_keyword_sets = [_keywords(item) for item in fallback_items]
+    weak = []
+    for item in fable_value:
+        keywords = _keywords(item)
+        if not keywords:
+            continue
+        if not any(keywords & fb for fb in fallback_keyword_sets):
+            weak.append(item)
+    return weak
 
 
 def get_dotted(data: Dict[str, Any], dotted: str) -> Any:

@@ -9,7 +9,16 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 PACK_VERSION = "0.5"
+PROTOCOL_VERSION = "0.4-max"
 PHASES = ["START", "SPEC", "CONTEXT", "PLAN", "IMPLEMENT", "VERIFY", "DONE"]
+
+
+def plugin_version(start: "Optional[Path]" = None) -> "Optional[str]":
+    manifest = pack_root(start) / ".claude-plugin" / "plugin.json"
+    try:
+        return json.loads(manifest.read_text(encoding="utf-8")).get("version")
+    except Exception:
+        return None
 GRADES = ["LIGHT", "STANDARD", "HEAVY"]
 
 
@@ -557,6 +566,11 @@ def scaffold_task(
     meta = {
         "task_id": task_id,
         "pack_version": PACK_VERSION,
+        "versions": {
+            "runtime": PACK_VERSION,
+            "protocol": PROTOCOL_VERSION,
+            "plugin": plugin_version(root),
+        },
         "model": {
             "provider": "anthropic",
             "model_id": model_id,
