@@ -148,12 +148,14 @@ def spec_gate(task_path: Path, root: Path) -> ValidationResult:
         if contains_generic_phrase(value):
             result.fail(f"spec_gate: generic verification phrase is blocked: {value}")
 
-    decision_types = {event.get("event_type") for event in decisions}
+    # Unfilled TODO skeletons (scaffolded at task start) never satisfy gates.
+    filled_decisions = [event for event in decisions if event.get("status") != "todo"]
+    decision_types = {event.get("event_type") for event in filled_decisions}
     required_types = HEAVY_DECISIONS if grade == "HEAVY" else STANDARD_DECISIONS
     missing = sorted(required_types - decision_types)
     if missing:
         result.fail("spec_gate: missing decision event types: " + ", ".join(missing))
-    for event in decisions:
+    for event in filled_decisions:
         if event.get("decision") and not event.get("artifact_updates"):
             result.fail(f"spec_gate: decision seq={event.get('seq')} lacks artifact_updates.")
         for rejected_option in event.get("rejected_options") or []:
@@ -279,6 +281,22 @@ def corpus_quality_gate(task_path: Path) -> ValidationResult:
         result.fail("corpus_quality_gate: UNVERIFIED context_log cannot enter golden corpus.")
     if meta.get("bypass_events"):
         result.fail("corpus_quality_gate: bypassed trace cannot enter golden corpus.")
+    grade = meta.get("grade", "STANDARD")
+    if grade != "LIGHT":
+        report = required_yaml(task_path / "verifier_report.yaml", result)
+        if report.get("verdict") != "approve":
+            result.fail(f"corpus_quality_gate: verifier verdict must be approve, got: {report.get('verdict')}")
+        decisions = required_jsonl(task_path / "decision_events.jsonl", result)
+        for event in decisions:
+            if event.get("status") == "todo":
+                continue
+            if event.get("decision") and not event.get("artifact_updates"):
+                result.fail(f"corpus_quality_gate: decision seq={event.get('seq')} lacks artifact_updates.")
+    if grade == "HEAVY":
+        if not list((task_path / "shadow").glob("*/delta.yaml")):
+            result.fail("corpus_quality_gate: HEAVY golden candidate requires a shadow delta.")
+        if not list((task_path / "counterfactuals").glob("*.yaml")):
+            result.fail("corpus_quality_gate: HEAVY golden candidate requires a counterfactual probe.")
     human = task_path / "human_review.yaml"
     if not human.exists():
         result.fail("corpus_quality_gate: human_review.yaml is required.")

@@ -46,17 +46,13 @@ def log_observation_placeholder(
         "source_event": f"context_log:seq={context_event.get('seq')}",
         "path": context_event.get("path", ""),
         "symbols": [],
-        "extracted_facts": [
-            {
-                "fact": "UNFILLED: add the repository fact extracted from this read.",
-                "supports": [],
-                "confidence": "low",
-            }
-        ],
-        "changed_task_understanding": False,
-        "caused_updates": [],
         "status": "placeholder",
         "reason": reason,
+        "required_fill": {
+            "extracted_facts": [],
+            "changed_task_understanding": None,
+            "caused_updates": [],
+        },
     }
     return tracelib.append_jsonl(task_path / "observation_log.jsonl", event)
 

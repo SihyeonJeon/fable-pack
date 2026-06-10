@@ -17,6 +17,39 @@ COMPARISON_FIELDS = [
 ]
 
 
+def scaffold_shadow(base_task_id: str, comparison_model_id: str, root: Path | None = None) -> Path:
+    """Create the comparison-trace pair structure so the second trace has a
+    ready slot: copied input/repo snapshots plus empty artifact templates.
+    Returns the comparison trace directory (shadow/<model-id>/trace/)."""
+    root = root or tracelib.project_root()
+    base_path = tracelib.task_dir(base_task_id, root)
+    shadow_dir = base_path / "shadow" / comparison_model_id
+    trace_dir = shadow_dir / "trace"
+    (trace_dir / "task_spec").mkdir(parents=True, exist_ok=True)
+    for name in ["input_snapshot.yaml", "repo_snapshot.yaml"]:
+        source = base_path / name
+        if source.exists():
+            (trace_dir / name).write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    spec_path = trace_dir / "task_spec" / "final.yaml"
+    if not spec_path.exists():
+        base_spec = tracelib.load_yaml(base_path / "task_spec" / "final.yaml")
+        tracelib.write_yaml(spec_path, tracelib.empty_task_spec(
+            base_task_id + "-shadow",
+            str(base_spec.get("user_goal") or ""),
+            str((base_spec.get("task_classification") or {}).get("primary_type") or "general"),
+        ))
+    (trace_dir / "decision_events.jsonl").touch(exist_ok=True)
+    critiques = shadow_dir / "critiques.yaml"
+    if not critiques.exists():
+        tracelib.write_yaml(critiques, {
+            "base_task_id": base_task_id,
+            "comparison_model_id": comparison_model_id,
+            "critiques": [],
+            "instructions": "After the comparison trace reaches PLAN, list concrete gaps here, then run `pack shadow run` to compute delta.yaml.",
+        })
+    return trace_dir
+
+
 def make_shadow_delta(
     base_task_id: str,
     fallback_model_id: str,

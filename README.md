@@ -81,6 +81,7 @@ Claude Code 안에서 두 줄:
 /fable-pack:start <목표>    ← grade 추정 후 gated trace 시작
 /fable-pack:status          ← 활성 task와 게이트 상태
 /fable-pack:done            ← done 게이트 통과 시 trace 종료
+/fable-pack:shadow <model>  ← 같은 입력으로 비교 trace 페어 스캐폴드 (문서화 갭 분석용)
 /fable-pack:promote         ← 리뷰 완료된 trace를 골든 코퍼스로 승격
 ```
 

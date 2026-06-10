@@ -213,6 +213,9 @@ class PackSmokeTests(unittest.TestCase):
         review = tracelib.load_yaml(task_path / "human_review.yaml")
         review["rating"] = "normal"
         tracelib.write_yaml(task_path / "human_review.yaml", review)
+        report = tracelib.load_yaml(task_path / "verifier_report.yaml")
+        report["verdict"] = "approve"
+        tracelib.write_yaml(task_path / "verifier_report.yaml", report)
         entry = corpus.promote("smoke-promote", self.tmp)
         self.assertEqual(entry["bucket"], "fable_golden")
         dest = self.tmp / "fable-disk" / "corpus" / "fable_golden" / "smoke-promote"
@@ -551,6 +554,85 @@ class PackSmokeTests(unittest.TestCase):
         self._run_hook("post_tool_use.py", normal_read)
         events = tracelib.read_jsonl(task_path / "context_log.jsonl")
         self.assertEqual(len(events), 1)
+
+    def test_decision_skeletons_do_not_satisfy_spec_gate(self) -> None:
+        task_path = tracelib.scaffold_task(
+            goal="skeleton check",
+            grade="STANDARD",
+            task_type="feature",
+            task_id="smoke-skeleton",
+            model_id="fable",
+            root=self.tmp,
+        )
+        events = tracelib.read_jsonl(task_path / "decision_events.jsonl")
+        todo_types = {e["event_type"] for e in events if e.get("status") == "todo"}
+        self.assertIn("context_selection", todo_types)
+        self.assertIn("acceptance_evidence_selection", todo_types)
+        result = validate.validate_task("smoke-skeleton", self.tmp, "spec")
+        self.assertTrue(any("missing decision event types" in error for error in result.errors))
+
+    def test_heavy_scaffold_includes_heavy_skeletons(self) -> None:
+        task_path = tracelib.scaffold_task(
+            goal="heavy skeleton check",
+            grade="HEAVY",
+            task_type="auth_change",
+            task_id="smoke-heavy-skel",
+            model_id="fable",
+            root=self.tmp,
+        )
+        events = tracelib.read_jsonl(task_path / "decision_events.jsonl")
+        todo_types = {e["event_type"] for e in events if e.get("status") == "todo"}
+        self.assertIn("architecture_boundary", todo_types)
+        self.assertIn("counterfactual_boundary", todo_types)
+
+    def test_placeholder_has_required_fill(self) -> None:
+        task_path = tracelib.scaffold_task(
+            goal="fill template",
+            grade="STANDARD",
+            task_type="feature",
+            task_id="smoke-reqfill",
+            model_id="fable",
+            root=self.tmp,
+        )
+        context = eventlib.log_context(task_path, "Read", {"file_path": "src/a.py"})
+        placeholder = eventlib.log_observation_placeholder(task_path, context)
+        self.assertIn("required_fill", placeholder)
+        self.assertIn("extracted_facts", placeholder["required_fill"])
+
+    def test_corpus_promote_requires_approve_verdict(self) -> None:
+        task_path = tracelib.scaffold_task(
+            goal="unapproved work",
+            grade="STANDARD",
+            task_type="feature",
+            task_id="smoke-noapprove",
+            model_id="fable",
+            root=self.tmp,
+        )
+        review = tracelib.load_yaml(task_path / "human_review.yaml")
+        review["rating"] = "normal"
+        tracelib.write_yaml(task_path / "human_review.yaml", review)
+        with self.assertRaises(ValueError) as ctx:
+            corpus.promote("smoke-noapprove", self.tmp)
+        self.assertIn("approve", str(ctx.exception))
+
+    def test_shadow_scaffold_creates_pair_structure(self) -> None:
+        import compare
+
+        tracelib.scaffold_task(
+            goal="implement auth flow",
+            grade="HEAVY",
+            task_type="auth_change",
+            task_id="smoke-shadowpair",
+            model_id="fable",
+            root=self.tmp,
+        )
+        trace_dir = compare.scaffold_shadow("smoke-shadowpair", "claude-opus-4-8", self.tmp)
+        self.assertTrue((trace_dir / "input_snapshot.yaml").exists())
+        self.assertTrue((trace_dir / "task_spec" / "final.yaml").exists())
+        self.assertTrue((trace_dir / "decision_events.jsonl").exists())
+        self.assertTrue((trace_dir.parent / "critiques.yaml").exists())
+        spec = tracelib.load_yaml(trace_dir / "task_spec" / "final.yaml")
+        self.assertEqual(spec["user_goal"], "implement auth flow")
 
     def test_cli_refuses_non_fable_reference_trace(self) -> None:
         script = ROOT / "fable-pack" / "adapters" / "claude-code" / "scripts" / "pack"

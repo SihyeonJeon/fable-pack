@@ -77,10 +77,13 @@ def main() -> int:
 
     shadow = sub.add_parser("shadow", help="shadow run utilities")
     shadow_sub = shadow.add_subparsers(dest="shadow_command", required=True)
-    shadow_run = shadow_sub.add_parser("run", help="create a shadow delta from fallback trace")
+    shadow_run = shadow_sub.add_parser("run", help="create a shadow delta from a comparison trace")
     shadow_run.add_argument("--task-id")
     shadow_run.add_argument("--fallback-model", required=True)
     shadow_run.add_argument("--fallback-trace", required=True)
+    shadow_scaffold = shadow_sub.add_parser("scaffold", help="create the comparison-trace pair structure")
+    shadow_scaffold.add_argument("--task-id")
+    shadow_scaffold.add_argument("--model", required=True, help="comparison model id, e.g. claude-opus-4-8")
 
     counterfactual = sub.add_parser("counterfactual", help="counterfactual probe utilities")
     cf_sub = counterfactual.add_subparsers(dest="counterfactual_command", required=True)
@@ -153,6 +156,10 @@ def main() -> int:
         if not task_id:
             print("No active task and no --task-id provided.", file=sys.stderr)
             return 2
+        if args.shadow_command == "scaffold":
+            trace_dir = compare.scaffold_shadow(task_id, args.model, root)
+            print(json.dumps({"scaffolded": str(trace_dir), "next": f"fill the comparison trace, then: pack shadow run --fallback-model {args.model} --fallback-trace {trace_dir}"}, indent=2))
+            return 0
         delta = compare.make_shadow_delta(task_id, args.fallback_model, args.fallback_trace, root)
         print(json.dumps(delta["summary"], indent=2))
         return 0

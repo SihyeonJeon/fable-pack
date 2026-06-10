@@ -649,6 +649,37 @@ def scaffold_task(
         "next_expected_signal": "Repository context scan and must_read selection.",
         "artifact_updates": ["meta.yaml", "input_snapshot.yaml", "task_spec/00_initial.yaml"],
     })
+    # TODO skeletons for every decision type this grade requires: filling a
+    # named slot misses less than remembering to create it. status=todo events
+    # do NOT satisfy gates (validate filters them out).
+    if grade in ("STANDARD", "HEAVY"):
+        required = ["context_selection", "requirement_inference", "rejected_alternative", "acceptance_evidence_selection"]
+        if grade == "HEAVY":
+            required += [
+                "architecture_boundary",
+                "risk_escalation",
+                "non_goal_boundary",
+                "worker_contract_boundary",
+                "verifier_gate_boundary",
+                "rollback_boundary",
+                "shadow_delta_interpretation",
+                "counterfactual_boundary",
+            ]
+        for event_type in required:
+            append_jsonl(directory / "decision_events.jsonl", {
+                "status": "todo",
+                "phase": "SPEC",
+                "event_type": event_type,
+                "trigger": "",
+                "observation_refs": [],
+                "hypothesis_before": "",
+                "decision": "",
+                "rejected_options": [],
+                "confidence_before": "",
+                "confidence_after": "",
+                "next_expected_signal": "",
+                "artifact_updates": [],
+            })
     return directory
 
 
