@@ -840,6 +840,43 @@ class PackSmokeTests(unittest.TestCase):
             str(i) for i in delta["missed_by_fallback"] if str(i.get("id", "")).startswith("weak_risk_register")
         ))
 
+    def test_project_root_ignores_lookalike_directories(self) -> None:
+        os.environ.pop("FABLE_PACK_PROJECT_ROOT", None)
+        old_claude = os.environ.pop("CLAUDE_PROJECT_DIR", None)
+        try:
+            # a directory merely NAMED fable-pack (e.g. a repo checkout in $HOME)
+            # must not capture child projects
+            (self.tmp / "fable-pack").mkdir()
+            project = self.tmp / "some-project"
+            project.mkdir()
+            self.assertEqual(tracelib.project_root(project), project.resolve())
+
+            # a real per-project install (fable-pack/PACK_VERSION) does anchor
+            install_root = self.tmp / "installed-project"
+            (install_root / "fable-pack").mkdir(parents=True)
+            (install_root / "fable-pack" / "PACK_VERSION").write_text("0.5\n")
+            subdir = install_root / "src" / "deep"
+            subdir.mkdir(parents=True)
+            self.assertEqual(tracelib.project_root(subdir), install_root.resolve())
+
+            # a real recording disk (trace+config) anchors too
+            disk_root_project = self.tmp / "disk-project"
+            (disk_root_project / "fable-disk" / "trace").mkdir(parents=True)
+            (disk_root_project / "fable-disk" / "config").mkdir(parents=True)
+            inner = disk_root_project / "lib"
+            inner.mkdir()
+            self.assertEqual(tracelib.project_root(inner), disk_root_project.resolve())
+
+            # CLAUDE_PROJECT_DIR (the session-bound folder) always wins
+            os.environ["CLAUDE_PROJECT_DIR"] = str(project)
+            self.assertEqual(tracelib.project_root(subdir), project.resolve())
+        finally:
+            if old_claude is None:
+                os.environ.pop("CLAUDE_PROJECT_DIR", None)
+            else:
+                os.environ["CLAUDE_PROJECT_DIR"] = old_claude
+            os.environ["FABLE_PACK_PROJECT_ROOT"] = str(self.tmp)
+
     def test_cli_refuses_non_fable_reference_trace(self) -> None:
         script = ROOT / "fable-pack" / "adapters" / "claude-code" / "scripts" / "pack"
         env = os.environ.copy()

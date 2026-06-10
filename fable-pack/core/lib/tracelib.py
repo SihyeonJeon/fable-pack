@@ -26,6 +26,17 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def _is_pack_install(candidate: Path) -> bool:
+    """True only for a real per-project pack install, not any directory that
+    happens to be named fable-pack (e.g. a checkout of this repo in $HOME)."""
+    return (candidate / "fable-pack" / "PACK_VERSION").is_file()
+
+
+def _is_pack_disk(candidate: Path) -> bool:
+    disk = candidate / "fable-disk"
+    return (disk / "trace").is_dir() and (disk / "config").is_dir()
+
+
 def project_root(start: Optional[Path] = None) -> Path:
     explicit = os.environ.get("FABLE_PACK_PROJECT_ROOT")
     if explicit:
@@ -37,7 +48,7 @@ def project_root(start: Optional[Path] = None) -> Path:
         return Path(claude_project).resolve()
     current = (start or Path.cwd()).resolve()
     for candidate in [current, *current.parents]:
-        if (candidate / "fable-pack").exists() or (candidate / "fable-disk").exists():
+        if _is_pack_install(candidate) or _is_pack_disk(candidate):
             return candidate
     return current
 
