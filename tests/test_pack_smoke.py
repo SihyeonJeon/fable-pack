@@ -668,6 +668,43 @@ class PackSmokeTests(unittest.TestCase):
         with_examples = corpus.export_rules(self.tmp, include_examples=True)["fable_pack_rules_export"]
         self.assertIn("examples", with_examples["rules"])
 
+    def test_spec_gate_requires_restated_goal(self) -> None:
+        tracelib.scaffold_task(
+            goal="interpretation check",
+            grade="STANDARD",
+            task_type="feature",
+            task_id="smoke-restate",
+            model_id="fable",
+            root=self.tmp,
+        )
+        result = validate.validate_task("smoke-restate", self.tmp, "spec")
+        self.assertTrue(any("restated_goal" in error for error in result.errors))
+
+    def test_timeline_merges_streams_in_order(self) -> None:
+        task_path = tracelib.scaffold_task(
+            goal="timeline check",
+            grade="STANDARD",
+            task_type="feature",
+            task_id="smoke-timeline",
+            model_id="fable",
+            root=self.tmp,
+        )
+        eventlib.log_user_prompt(task_path, "로그인 구현해줘")
+        ctx = eventlib.log_context(task_path, "Read", {"file_path": "src/auth.py"})
+        eventlib.log_observation_placeholder(task_path, ctx)
+        eventlib.log_edit(task_path, "Edit", {"file_path": "src/auth.py"}, allowed=True)
+        eventlib.log_command(task_path, {"command": "pytest"})
+        entries = tracelib.timeline("smoke-timeline", self.tmp)
+        kinds = [e["kind"] for e in entries]
+        for kind in ["PHASE", "PROMPT", "READ", "OBSERVE", "DECIDE", "EDIT", "RUN"]:
+            self.assertIn(kind, kinds, kind)
+        timestamps = [e["ts"] for e in entries]
+        self.assertEqual(timestamps, sorted(timestamps))
+        prompt_entries = [e for e in entries if e["kind"] == "PROMPT"]
+        self.assertIn("로그인", prompt_entries[0]["summary"])
+        decide_only = [e for e in tracelib.timeline("smoke-timeline", self.tmp) if e["kind"] == "DECIDE"]
+        self.assertTrue(any("(todo)" in e["summary"] for e in decide_only))
+
     def test_cli_refuses_non_fable_reference_trace(self) -> None:
         script = ROOT / "fable-pack" / "adapters" / "claude-code" / "scripts" / "pack"
         env = os.environ.copy()

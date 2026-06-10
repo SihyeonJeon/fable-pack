@@ -73,6 +73,11 @@ def main() -> int:
     val.add_argument("--gate", choices=["all", "spec", "context", "plan", "done", "corpus"], default="all")
     val.add_argument("--json", action="store_true")
 
+    timeline_cmd = sub.add_parser("timeline", help="merged time-ordered view of all trace logs")
+    timeline_cmd.add_argument("--task-id")
+    timeline_cmd.add_argument("--kind", action="append", help="filter: PROMPT/READ/OBSERVE/DECIDE/PLAN/EDIT/RUN/SAY/PHASE")
+    timeline_cmd.add_argument("--json", action="store_true")
+
     sub.add_parser("freeze", help="freeze active task artifacts")
 
     shadow = sub.add_parser("shadow", help="shadow run utilities")
@@ -153,6 +158,21 @@ def main() -> int:
         return handle_log(args, root)
     if args.command == "validate":
         return handle_validate(args, root)
+    if args.command == "timeline":
+        task_id = args.task_id or tracelib.read_active(root)
+        if not task_id:
+            print("No active task and no --task-id provided.", file=sys.stderr)
+            return 2
+        entries = tracelib.timeline(task_id, root)
+        if args.kind:
+            wanted = {k.upper() for k in args.kind}
+            entries = [e for e in entries if e["kind"] in wanted]
+        if args.json:
+            print(json.dumps(entries, indent=2, ensure_ascii=False))
+        else:
+            for entry in entries:
+                print(f"{entry['ts']}  {entry['kind']:<8} {entry['summary']}")
+        return 0
     if args.command == "freeze":
         manifest = snapshot.freeze_task(root=root)
         print(json.dumps({"frozen": manifest["task_id"], "artifact_count": len(manifest["artifacts"])}, indent=2))

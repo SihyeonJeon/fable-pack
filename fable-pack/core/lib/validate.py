@@ -119,6 +119,10 @@ def spec_gate(task_path: Path, root: Path) -> ValidationResult:
     if not repo_context.get("architectural_constraints"):
         result.fail("spec_gate: repo_context.architectural_constraints is empty.")
 
+    interpretation = spec.get("goal_interpretation") or {}
+    if not str(interpretation.get("restated_goal") or "").strip():
+        result.fail("spec_gate: goal_interpretation.restated_goal is empty — state how the raw goal was understood.")
+
     rejected = spec.get("rejected_alternatives") or []
     min_rejected = 3 if grade == "HEAVY" else 2
     if len(rejected) < min_rejected:

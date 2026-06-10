@@ -687,6 +687,11 @@ def empty_task_spec(task_id: str, goal: str, task_type: str) -> Dict[str, Any]:
     return {
         "task_id": task_id,
         "user_goal": goal,
+        "goal_interpretation": {
+            "restated_goal": "",
+            "ambiguities": [],
+            "unstated_expectations": [],
+        },
         "task_classification": {
             "primary_type": task_type,
             "secondary_types": [],
@@ -815,3 +820,71 @@ def lock_hash(root: Path) -> Optional[str]:
     if not lockfiles:
         return None
     return sha256_text(json.dumps(lockfiles, sort_keys=True))
+
+
+TIMELINE_SOURCES = [
+    ("user_prompt_log.jsonl", "PROMPT"),
+    ("context_log.jsonl", "READ"),
+    ("observation_log.jsonl", "OBSERVE"),
+    ("decision_events.jsonl", "DECIDE"),
+    ("orchestration_log.jsonl", "PLAN"),
+    ("edit_log.jsonl", "EDIT"),
+    ("command_log.jsonl", "RUN"),
+    ("assistant_log.jsonl", "SAY"),
+]
+
+
+def _timeline_summary(kind: str, event: Dict[str, Any]) -> str:
+    if kind == "PROMPT":
+        return (event.get("prompt") or "")[:120]
+    if kind == "READ":
+        return f"{event.get('event_type', '')} {event.get('path', '')}"[:120]
+    if kind == "OBSERVE":
+        if event.get("status") == "placeholder":
+            return f"placeholder {event.get('path', '')}"[:120]
+        facts = event.get("extracted_facts") or []
+        fact = facts[0].get("fact", "") if facts else ""
+        marker = " [understanding-changed]" if event.get("changed_task_understanding") else ""
+        return f"{event.get('path', '')}: {fact}{marker}"[:160]
+    if kind == "DECIDE":
+        if event.get("status") == "todo":
+            return f"(todo) {event.get('event_type', '')}"
+        return f"{event.get('event_type', '')}: {event.get('decision', '')}"[:160]
+    if kind == "PLAN":
+        return f"{event.get('event_type', '')}: {(event.get('plan_full') or event.get('prompt_full') or event.get('tool_input_summary') or '')}"[:160]
+    if kind == "EDIT":
+        return f"{event.get('event_type', '')} {event.get('path', '')}"[:120]
+    if kind == "RUN":
+        return (event.get("command") or "")[:120]
+    if kind == "SAY":
+        return (event.get("text") or "")[:160]
+    return ""
+
+
+def timeline(task_id: Optional[str] = None, root: Optional[Path] = None) -> List[Dict[str, Any]]:
+    """Reconstruct the working timeline of a task across every log stream.
+
+    Output is ordered by timestamp (then per-file seq), which makes the
+    recorded flow inspectable end to end: prompt -> reads -> observations ->
+    decisions -> plan -> edits -> commands -> narration.
+    """
+    task_path = task_dir(task_id, root)
+    entries: List[Dict[str, Any]] = []
+    for filename, kind in TIMELINE_SOURCES:
+        for event in read_jsonl(task_path / filename):
+            entries.append({
+                "ts": str(event.get("ts") or ""),
+                "seq": event.get("seq") or 0,
+                "kind": kind,
+                "summary": _timeline_summary(kind, event),
+            })
+    meta = load_yaml(task_path / "meta.yaml")
+    for transition in meta.get("phase_transitions") or []:
+        entries.append({
+            "ts": str(transition.get("ts") or ""),
+            "seq": 0,
+            "kind": "PHASE",
+            "summary": str(transition.get("phase") or ""),
+        })
+    entries.sort(key=lambda e: (e["ts"], e["seq"]))
+    return entries

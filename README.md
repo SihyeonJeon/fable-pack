@@ -47,6 +47,7 @@ Claude Code 세션의 엔지니어링 의사결정 기록과 품질 게이트
 ```text
 /fable-pack:start <목표>    grade 지정 trace 시작
 /fable-pack:status          활성 task와 게이트 상태
+/fable-pack:timeline        전 로그 병합 타임라인 — 프롬프트→읽기→관찰→결정→수정 흐름 재구성
 /fable-pack:done            done 게이트 통과 시 종료
 /fable-pack:shadow <model>  비교 trace 페어 스캐폴드 — 문서화 갭 분석
 /fable-pack:promote         리뷰 완료 trace를 코퍼스로 승격
