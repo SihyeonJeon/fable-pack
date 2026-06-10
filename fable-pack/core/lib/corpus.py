@@ -1,12 +1,88 @@
 from __future__ import annotations
 
+import json
 import shutil
 from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List
 
+import eventlib
 import tracelib
 import validate
+
+EXPORT_DROP_KEYS = {"evidence_ref", "ref", "task_id", "base_task_id", "source_trace", "fable_trace_ref", "fallback_trace_ref"}
+
+
+def _sanitize(value: Any) -> Any:
+    """Strip trace identifiers and redact secret-shaped strings so exported
+    rules carry no project-specific or sensitive payload."""
+    if isinstance(value, dict):
+        return {k: _sanitize(v) for k, v in value.items() if k not in EXPORT_DROP_KEYS}
+    if isinstance(value, list):
+        return [_sanitize(v) for v in value]
+    if isinstance(value, str):
+        return eventlib.redact_secrets(value)
+    return value
+
+
+def export_rules(root: Path | None = None, include_examples: bool = False) -> Dict[str, Any]:
+    """Collect distilled, shareable rules from local traces.
+
+    Sources: distillation_patch.yaml, shadow omission_to_rule_patch.yaml,
+    rule_candidates.yaml. Examples are excluded by default because they may
+    quote project code; everything is sanitized and deduplicated.
+    """
+    root = root or tracelib.project_root()
+    buckets: Dict[str, List[Any]] = {
+        "gate_rules": [],
+        "playbook_rules": [],
+        "schema": [],
+        "invariants": [],
+        "examples": [],
+        "candidates": [],
+    }
+    seen: set = set()
+    source_traces = 0
+
+    def add(bucket: str, item: Any) -> bool:
+        cleaned = _sanitize(item)
+        if not cleaned:
+            return False
+        key = bucket + json.dumps(cleaned, sort_keys=True, ensure_ascii=False)
+        if key in seen:
+            return False
+        seen.add(key)
+        buckets[bucket].append(cleaned)
+        return True
+
+    for task in iter_tasks(root):
+        contributed = False
+        patch_paths = [task / "distillation_patch.yaml", *sorted((task / "shadow").glob("*/omission_to_rule_patch.yaml"))]
+        for path in patch_paths:
+            if not path.exists():
+                continue
+            patches = (tracelib.load_yaml(path) or {}).get("patches") or {}
+            for bucket in ["gate_rules", "playbook_rules", "schema", "invariants", "examples"]:
+                if bucket == "examples" and not include_examples:
+                    continue
+                for item in patches.get(bucket) or []:
+                    contributed = add(bucket, item) or contributed
+        candidates_path = task / "rule_candidates.yaml"
+        if candidates_path.exists():
+            for item in (tracelib.load_yaml(candidates_path) or {}).get("draft_queue") or []:
+                contributed = add("candidates", item) or contributed
+        if contributed:
+            source_traces += 1
+
+    return {
+        "fable_pack_rules_export": {
+            "pack_version": tracelib.PACK_VERSION,
+            "exported_at": tracelib.utc_now(),
+            "source_traces": source_traces,
+            "includes_examples": include_examples,
+            "rules": {k: v for k, v in buckets.items() if v},
+        }
+    }
 
 GOLDEN_RATINGS = {"exemplary", "normal"}
 FLAWED_RATINGS = {"flawed"}

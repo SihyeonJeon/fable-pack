@@ -114,6 +114,7 @@ trace 레이아웃, 게이트 규칙 상세: [fable-pack/README.md](fable-pack/R
 3. `/fable-pack:done` — 검증 증거 작성 후 종료
 4. `human_review.yaml` rating 기입 — `exemplary` / `normal` / `flawed`
 5. `/fable-pack:promote` — `corpus/fable_golden/` 또는 `flawed_examples/`로 승격
+6. (선택) `pack rules export` — 정제 룰만 추출해 [기여](CONTRIBUTING.md) — 시크릿·trace 식별자 자동 제거, 프로젝트 코드 미포함
 
 ## 개발
 

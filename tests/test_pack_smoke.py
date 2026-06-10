@@ -634,6 +634,40 @@ class PackSmokeTests(unittest.TestCase):
         spec = tracelib.load_yaml(trace_dir / "task_spec" / "final.yaml")
         self.assertEqual(spec["user_goal"], "implement auth flow")
 
+    def test_rules_export_sanitizes_and_dedupes(self) -> None:
+        task_path = tracelib.scaffold_task(
+            goal="rule source",
+            grade="STANDARD",
+            task_type="feature",
+            task_id="smoke-rules",
+            model_id="fable",
+            root=self.tmp,
+        )
+        patch = {
+            "task_id": "smoke-rules",
+            "source": {"type": "self_review", "ref": "self_review.yaml"},
+            "patches": {
+                "schema": [],
+                "gate_rules": [
+                    {"rule_id": "r1", "condition": "auth task without middleware check", "block_message": "check middleware chain", "evidence_ref": "observation_log:seq=3"},
+                    {"rule_id": "r1", "condition": "auth task without middleware check", "block_message": "check middleware chain", "evidence_ref": "observation_log:seq=3"},
+                ],
+                "playbook_rules": [{"rule": "export API_KEY=sk-abcdef1234567890 before deploy"}],
+                "examples": [{"type": "good", "name": "secret-project-example"}],
+                "invariants": [],
+            },
+        }
+        tracelib.write_yaml(task_path / "distillation_patch.yaml", patch)
+        export = corpus.export_rules(self.tmp)["fable_pack_rules_export"]
+        self.assertEqual(export["source_traces"], 1)
+        self.assertEqual(len(export["rules"]["gate_rules"]), 1)
+        self.assertNotIn("evidence_ref", export["rules"]["gate_rules"][0])
+        serialized = json.dumps(export, ensure_ascii=False)
+        self.assertNotIn("sk-abcdef1234567890", serialized)
+        self.assertNotIn("secret-project-example", serialized)
+        with_examples = corpus.export_rules(self.tmp, include_examples=True)["fable_pack_rules_export"]
+        self.assertIn("examples", with_examples["rules"])
+
     def test_cli_refuses_non_fable_reference_trace(self) -> None:
         script = ROOT / "fable-pack" / "adapters" / "claude-code" / "scripts" / "pack"
         env = os.environ.copy()

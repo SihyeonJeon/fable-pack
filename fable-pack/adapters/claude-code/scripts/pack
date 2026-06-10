@@ -99,6 +99,12 @@ def main() -> int:
     cf_run.add_argument("--boundary-decision", default="pending")
     cf_run.add_argument("--rule", default="pending")
 
+    rules_cmd = sub.add_parser("rules", help="shareable rule utilities")
+    rules_sub = rules_cmd.add_subparsers(dest="rules_command", required=True)
+    rules_export = rules_sub.add_parser("export", help="export sanitized distilled rules for sharing")
+    rules_export.add_argument("--out", help="output file (default: stdout)")
+    rules_export.add_argument("--include-examples", action="store_true", help="include example patches (may quote project code)")
+
     corpus_cmd = sub.add_parser("corpus", help="corpus coverage and promotion")
     corpus_cmd.add_argument("--write-report", action="store_true")
     corpus_cmd.add_argument("--json", action="store_true")
@@ -165,6 +171,18 @@ def main() -> int:
         return 0
     if args.command == "counterfactual":
         return handle_counterfactual(args, root)
+    if args.command == "rules":
+        export = corpus.export_rules(root, include_examples=args.include_examples)
+        text = tracelib.dump_yaml(export)
+        if args.out:
+            out_path = Path(args.out)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(text, encoding="utf-8")
+            summary = export["fable_pack_rules_export"]
+            print(json.dumps({"written": str(out_path), "source_traces": summary["source_traces"], "buckets": {k: len(v) for k, v in summary["rules"].items()}}, indent=2, ensure_ascii=False))
+        else:
+            print(text, end="")
+        return 0
     if args.command == "corpus":
         if getattr(args, "corpus_command", None) == "promote":
             task_id = args.task_id or tracelib.read_active(root)

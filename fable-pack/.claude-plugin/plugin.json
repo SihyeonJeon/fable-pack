@@ -1,7 +1,7 @@
 {
   "name": "fable-pack",
   "description": "Persists the engineering decision record of Claude Code sessions (specs, context rationale, acceptance evidence) and enforces spec/context/done quality gates. Scoped to sessions whose model id contains 'fable'; inert otherwise.",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "author": {
     "name": "jeonsihyeon"
   }
