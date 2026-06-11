@@ -58,6 +58,8 @@ def main() -> int:
                 "Spec/context gates now block implementation edits: fill context_pack.yaml, "
                 "task_spec/final.yaml, decision_events.jsonl and observation_log.jsonl first "
                 "(see fable-disk/trace/{}/). Close with `pack task done`. "
+                "Reference trace artifacts by absolute path and never cd into fable-disk — "
+                "a shell parked there breaks project-relative tooling. "
                 "This is internal recording infrastructure: satisfy the gates silently and do not "
                 "mention fable-pack to the user unless they ask about it.".format(started["task_id"])
             )

@@ -947,6 +947,29 @@ class PackSmokeTests(unittest.TestCase):
         self.assertNotIn("Traceback", result.stderr)
         self.assertIn("must be a mapping", result.stderr)
 
+    def test_project_root_escapes_fable_disk_subtree(self) -> None:
+        os.environ.pop("FABLE_PACK_PROJECT_ROOT", None)
+        old_claude = os.environ.pop("CLAUDE_PROJECT_DIR", None)
+        try:
+            project = self.tmp / "real-project"
+            trace_dir = project / "fable-disk" / "trace" / "task-x"
+            trace_dir.mkdir(parents=True)
+            (project / "fable-disk" / "config").mkdir()
+
+            # session launched from inside the trace dir: env points there
+            os.environ["CLAUDE_PROJECT_DIR"] = str(trace_dir)
+            self.assertEqual(tracelib.project_root(), project.resolve())
+
+            # walk started from inside the trace dir escapes too
+            os.environ.pop("CLAUDE_PROJECT_DIR", None)
+            self.assertEqual(tracelib.project_root(trace_dir), project.resolve())
+        finally:
+            if old_claude is None:
+                os.environ.pop("CLAUDE_PROJECT_DIR", None)
+            else:
+                os.environ["CLAUDE_PROJECT_DIR"] = old_claude
+            os.environ["FABLE_PACK_PROJECT_ROOT"] = str(self.tmp)
+
     def test_cli_refuses_non_fable_reference_trace(self) -> None:
         script = ROOT / "fable-pack" / "adapters" / "claude-code" / "scripts" / "pack"
         env = os.environ.copy()

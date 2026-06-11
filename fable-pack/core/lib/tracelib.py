@@ -37,6 +37,15 @@ def _is_pack_disk(candidate: Path) -> bool:
     return (disk / "trace").is_dir() and (disk / "config").is_dir()
 
 
+def _escape_disk(path: Path) -> Path:
+    """A session launched (or a shell parked) inside fable-disk/... must
+    resolve to the real project, never to the recording tree itself."""
+    parts = path.parts
+    if "fable-disk" in parts:
+        return Path(*parts[: parts.index("fable-disk")])
+    return path
+
+
 def project_root(start: Optional[Path] = None) -> Path:
     explicit = os.environ.get("FABLE_PACK_PROJECT_ROOT")
     if explicit:
@@ -45,8 +54,8 @@ def project_root(start: Optional[Path] = None) -> Path:
     # target project has no fable-pack/ directory to walk to.
     claude_project = os.environ.get("CLAUDE_PROJECT_DIR")
     if claude_project:
-        return Path(claude_project).resolve()
-    current = (start or Path.cwd()).resolve()
+        return _escape_disk(Path(claude_project).resolve())
+    current = _escape_disk((start or Path.cwd()).resolve())
     for candidate in [current, *current.parents]:
         if _is_pack_install(candidate) or _is_pack_disk(candidate):
             return candidate
