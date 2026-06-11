@@ -1,0 +1,27 @@
+task_id: task-20260610T123918z
+changed_files:
+- fable-pack/core/lib/tracelib.py
+- fable-pack/.claude-plugin/plugin.json
+- tests/test_pack_smoke.py
+- (deleted) ~/fable-disk
+forbidden_file_check:
+  touched_forbidden_file: false
+  forbidden_files: []
+acceptance_evidence:
+- criterion: lookalike/install/disk/CLAUDE_PROJECT_DIR resolution covered by test
+    and suite green
+  status: pass
+  evidence_ref: 'command_log: Ran 44 tests OK'
+- criterion: fake project under HOME resolves to itself after fix
+  status: pass
+  evidence_ref: 'command_log: Desktop -> Desktop reproduction'
+risk_coverage:
+- risk_id: r-stray-anchor
+  covered: true
+  evidence_ref: 'command_log: ~/fable-disk removed (2 junk files), post-fix resolution
+    verified'
+test_commands:
+- command: python3 -m unittest tests.test_pack_smoke
+  status: pass
+unplanned_changes: []
+verdict: approve

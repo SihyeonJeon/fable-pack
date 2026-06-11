@@ -1,0 +1,34 @@
+2026-06-10T12:39:18Z  PHASE    START
+2026-06-10T12:39:18Z  DECIDE   task_classification: Start STANDARD trace for task_type=bugfix.
+2026-06-10T12:39:18Z  RUN      unset FABLE_PACK_PROJECT_ROOT CLAUDE_PROJECT_DIR 2>/dev/null
+P=fable-pack/adapters/claude-code/scripts/pack
+python3 $P o
+2026-06-10T12:39:18Z  DECIDE   (todo) context_selection
+2026-06-10T12:39:18Z  DECIDE   (todo) requirement_inference
+2026-06-10T12:39:18Z  DECIDE   (todo) rejected_alternative
+2026-06-10T12:39:18Z  DECIDE   (todo) acceptance_evidence_selection
+2026-06-10T12:39:32Z  EDIT     Edit ~/fable-pack/fable-pack/core/lib/tracelib.py
+2026-06-10T12:39:47Z  RUN      find ~/fable-disk -type f | wc -l; rm -rf ~/fable-disk && echo removed
+unset FABLE_PACK_PROJECT_ROOT CLAUDE_PROJECT_DIR 
+2026-06-10T12:40:02Z  READ     Read ~/fable-pack/fable-pack/core/lib/tracelib.py
+2026-06-10T12:40:02Z  OBSERVE  placeholder ~/fable-pack/fable-pack/core/lib/tracelib.py
+2026-06-10T12:41:10Z  OBSERVE  fable-pack/core/lib/tracelib.py: project_root walk matched any dir literally named fable-pack/fable-disk; HOME contains this repo checkout so every sibling proj
+2026-06-10T12:41:10Z  OBSERVE  ~/fable-disk: stray ~/fable-disk confirmed (MODE=on, empty trace) — created when user ran pack on in another project; deleted after inspection 
+2026-06-10T12:41:11Z  RUN      unset FABLE_PACK_PROJECT_ROOT CLAUDE_PROJECT_DIR 2>/dev/null
+P=fable-pack/adapters/claude-code/scripts/pack
+python3 $P l
+2026-06-10T12:41:11Z  DECIDE   context_selection: must_read = tracelib.py (root resolution); evidence = stray ~/fable-disk + reproduction via walk from HOME subdir
+2026-06-10T12:41:11Z  DECIDE   requirement_inference: CLAUDE_PROJECT_DIR (the CLI session's bound folder) stays the primary source and already takes precedence; the name-only walk was the mis
+2026-06-10T12:41:11Z  DECIDE   rejected_alternative: Rejected: removing the walk entirely (cwd only). Reason: running pack CLI from a project subdirectory in a terminal is legitimate; strict 
+2026-06-10T12:41:11Z  DECIDE   rejected_alternative: Rejected: keeping ~/fable-disk for forensic value. Reason: 2 junk files, no trace data; leaving it would itself anchor HOME as a disk mark
+2026-06-10T12:41:11Z  DECIDE   acceptance_evidence_selection: Done = lookalike-dir test proves no false anchor + real install/disk/CLAUDE_PROJECT_DIR anchors verified; stray dir removed; suit
+2026-06-10T12:41:27Z  EDIT     Edit ~/fable-pack/tests/test_pack_smoke.py
+2026-06-10T12:41:39Z  RUN      python3 -m unittest tests.test_pack_smoke 2>&1 | tail -3
+2026-06-10T12:41:52Z  RUN      python3 -m unittest tests.test_pack_smoke 2>&1 | grep -B2 -A8 "FAIL:"
+2026-06-10T12:42:10Z  RUN      python3 - <<'EOF'
+from pathlib import Path
+p = Path("tests/test_pack_smoke.py")
+text = p.read_text()
+text = text.replace
+2026-06-10T12:42:24Z  EDIT     Edit ~/fable-pack/fable-pack/.claude-plugin/plugin.json
+2026-06-10T12:42:51Z  PHASE    DONE

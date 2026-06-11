@@ -1,0 +1,19 @@
+task_id: task-20260610T123918z
+task_type: bugfix
+must_read:
+- path: fable-pack/core/lib/tracelib.py
+  selected_by_decision_ref: decision_events:seq=2
+should_read:
+- path: tests/test_pack_smoke.py
+similar_implementations:
+- path: fable-pack/core/lib/tracelib.py
+  why: '_is_pack_install mirrors the existing guarded-hook marker philosophy: verify
+    capability, not name'
+conventions:
+- rule: markers must prove capability (file contents/structure), not naming
+  source: install.sh guarded commands
+known_hazards:
+- stray ~/fable-disk would itself become a marker if left
+- CLAUDE_PROJECT_DIR absence in some Bash environments triggers the fallback path
+forbidden_context_shortcuts: []
+no_precedent_justification: null

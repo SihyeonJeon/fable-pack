@@ -1,0 +1,87 @@
+task_id: task-20260610T123918z
+user_goal: 다른 프로젝트에서 on해도 fable-disk가 안 생기는 버그 수정; 루트는 CLI 세션이 종속된 폴더
+goal_interpretation:
+  restated_goal: 프로젝트 루트 해석을 세션 종속 폴더(CLAUDE_PROJECT_DIR) 우선으로 유지하되, env 부재 시의 fallback
+    walk가 이름만 같은 디렉토리(홈의 repo checkout)에 낚이지 않게 실증 마커로 교체한다
+  ambiguities:
+  - ambiguity: walk 자체를 없애야 하는가
+    resolution: 아니다 — 터미널에서 프로젝트 하위 디렉토리 실행은 정당한 경로; 마커 엄격화로 충분
+  unstated_expectations:
+  - 홈에 생긴 잔여물 정리
+  - 다른 프로젝트에서 재시도 시 즉시 동작
+task_classification:
+  primary_type: bugfix
+  secondary_types: []
+  complexity: low
+  blast_radius: high
+repo_context:
+  must_read:
+  - fable-pack/core/lib/tracelib.py
+  similar_implementations:
+  - fable-pack/core/lib/tracelib.py
+  architectural_constraints:
+  - constraint: 'root resolution order: explicit env > session-bound CLAUDE_PROJECT_DIR
+      > marker-verified walk > cwd'
+    evidence_ref: observation_log:seq=1
+  - constraint: 'markers verify capability: fable-pack/PACK_VERSION file, fable-disk/trace+config
+      dirs'
+    evidence_ref: observation_log:seq=1
+  critical_invariants:
+  - hooks (which always have CLAUDE_PROJECT_DIR) unaffected
+  - repo self-development still resolves to repo root
+inferred_requirements:
+  functional:
+  - requirement: dir named fable-pack without PACK_VERSION never anchors
+    evidence_ref: observation_log:seq=1
+  - requirement: real install and real disk still anchor from subdirs
+    evidence_ref: observation_log:seq=1
+  - requirement: stray ~/fable-disk removed
+    evidence_ref: observation_log:seq=2
+  non_functional:
+  - requirement: no behavior change for hook paths
+    evidence_ref: observation_log:seq=1
+  security:
+  - requirement: no traces written outside the bound project
+    evidence_ref: observation_log:seq=2
+  regression:
+  - requirement: 43 tests stay green
+    evidence_ref: command_log:seq=1
+non_goals:
+- removing the walk fallback
+- changing hook env handling
+assumptions:
+- assumption: CLAUDE_PROJECT_DIR is present in hook environments always
+  confidence: high
+  blocking: false
+rejected_alternatives:
+- category: architecture_alternative
+  alternative: cwd-only resolution (no walk)
+  reason: breaks legitimate subdirectory CLI use in terminals
+  evidence_ref: decision_events:seq=5
+- category: tempting_shortcut
+  alternative: keep stray ~/fable-disk
+  reason: would itself anchor HOME as a disk marker
+  evidence_ref: decision_events:seq=6
+risk_register:
+- id: r-stray-anchor
+  risk: leftover ~/fable-disk re-anchors HOME even after fix
+  severity: high
+  mitigation: delete stray dir and verify resolution from HOME subdir
+  evidence_ref: observation_log:seq=2
+acceptance_criteria:
+- criterion: lookalike/install/disk/CLAUDE_PROJECT_DIR resolution covered by test
+    and suite green
+  verification:
+    type: command
+    value: python3 -m unittest tests.test_pack_smoke
+- criterion: fake project under HOME resolves to itself after fix
+  verification:
+    type: command
+    value: python3 -c project_root(Desktop) == Desktop
+rollback_plan:
+  type: git_revert
+  details: single commit
+  evidence_ref: command_log:seq=1
+worker_dispatch_summary:
+  workers_required: []
+  dispatch_blockers: []
