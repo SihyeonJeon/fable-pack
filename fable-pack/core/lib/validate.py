@@ -123,7 +123,7 @@ def spec_gate(task_path: Path, root: Path) -> ValidationResult:
     if not str(interpretation.get("restated_goal") or "").strip():
         result.fail("spec_gate: goal_interpretation.restated_goal is empty — state how the raw goal was understood.")
 
-    rejected = spec.get("rejected_alternatives") or []
+    rejected = dict_entries(spec.get("rejected_alternatives"), "task_spec.rejected_alternatives", result)
     min_rejected = 3 if grade == "HEAVY" else 2
     if len(rejected) < min_rejected:
         result.fail(f"spec_gate: rejected_alternatives requires at least {min_rejected} entries for {grade}.")
@@ -133,16 +133,16 @@ def spec_gate(task_path: Path, root: Path) -> ValidationResult:
             if needed not in categories:
                 result.fail(f"spec_gate: HEAVY rejected_alternatives missing category {needed}.")
 
-    for risk in spec.get("risk_register") or []:
+    for risk in dict_entries(spec.get("risk_register"), "task_spec.risk_register", result):
         if risk.get("severity") in ("high", "blocking") and not risk.get("mitigation"):
             result.fail(f"spec_gate: high/blocking risk lacks mitigation: {risk.get('risk')}")
 
-    for assumption in spec.get("assumptions") or []:
+    for assumption in dict_entries(spec.get("assumptions"), "task_spec.assumptions", result):
         if assumption.get("blocking") and assumption.get("confidence") == "low":
             result.fail(f"spec_gate: blocking low-confidence assumption unresolved: {assumption.get('assumption')}")
 
-    criteria = spec.get("acceptance_criteria") or []
-    if not criteria:
+    criteria = dict_entries(spec.get("acceptance_criteria"), "task_spec.acceptance_criteria", result)
+    if not spec.get("acceptance_criteria"):
         result.fail("spec_gate: acceptance_criteria is empty.")
     for criterion in criteria:
         verification = criterion.get("verification") or {}
@@ -162,7 +162,7 @@ def spec_gate(task_path: Path, root: Path) -> ValidationResult:
     for event in filled_decisions:
         if event.get("decision") and not event.get("artifact_updates"):
             result.fail(f"spec_gate: decision seq={event.get('seq')} lacks artifact_updates.")
-        for rejected_option in event.get("rejected_options") or []:
+        for rejected_option in dict_entries(event.get("rejected_options"), f"decision seq={event.get('seq')} rejected_options", result):
             if not rejected_option.get("category"):
                 result.fail(f"spec_gate: decision seq={event.get('seq')} rejected option lacks category.")
 
@@ -247,10 +247,11 @@ def done_gate(task_path: Path, root: Path) -> ValidationResult:
     if report.get("verdict") != "approve":
         result.fail(f"done_gate: verifier_report.verdict must be approve, got: {report.get('verdict')}")
 
-    criteria = spec.get("acceptance_criteria") or []
-    if not criteria:
+    criteria = dict_entries(spec.get("acceptance_criteria"), "task_spec.acceptance_criteria", result)
+    if not spec.get("acceptance_criteria"):
         result.fail("done_gate: acceptance_criteria is empty; nothing can be verified.")
-    evidence_by_criterion = {item.get("criterion"): item for item in report.get("acceptance_evidence") or []}
+    evidence_entries = dict_entries(report.get("acceptance_evidence"), "verifier_report.acceptance_evidence", result)
+    evidence_by_criterion = {item.get("criterion"): item for item in evidence_entries}
     for criterion in criteria:
         key = criterion.get("criterion")
         evidence = evidence_by_criterion.get(key)
@@ -258,19 +259,20 @@ def done_gate(task_path: Path, root: Path) -> ValidationResult:
             result.fail(f"done_gate: missing acceptance evidence for: {key}")
         elif evidence.get("status") == "not_tested":
             result.fail(f"done_gate: acceptance evidence is not_tested for: {key}")
-    for risk in report.get("risk_coverage") or []:
+    coverage_entries = dict_entries(report.get("risk_coverage"), "verifier_report.risk_coverage", result)
+    for risk in coverage_entries:
         if risk.get("risk") and risk.get("covered") is False:
             result.fail(f"done_gate: risk is not covered: {risk.get('risk')}")
 
     # Close the loop: every high/blocking risk the spec identified must be
     # affirmatively covered in the verifier report, not merely "not denied".
     covered_keys: Set[str] = set()
-    for item in report.get("risk_coverage") or []:
+    for item in coverage_entries:
         if item.get("covered") is True:
             for key in (item.get("risk_id"), item.get("risk")):
                 if key:
                     covered_keys.add(str(key))
-    for risk in spec.get("risk_register") or []:
+    for risk in dict_entries(spec.get("risk_register"), "task_spec.risk_register", result):
         if risk.get("severity") not in ("high", "blocking"):
             continue
         keys = {str(k) for k in (risk.get("id"), risk.get("risk")) if k}
@@ -278,10 +280,10 @@ def done_gate(task_path: Path, root: Path) -> ValidationResult:
             result.fail(f"done_gate: high/blocking spec risk lacks verifier coverage: {risk.get('id') or risk.get('risk')}")
     if report.get("forbidden_file_check", {}).get("touched_forbidden_file"):
         result.fail("done_gate: forbidden file was touched.")
-    for change in report.get("unplanned_changes") or []:
+    for change in dict_entries(report.get("unplanned_changes"), "verifier_report.unplanned_changes", result):
         if not change.get("has_decision_event"):
             result.fail(f"done_gate: unplanned change lacks decision event: {change.get('path')}")
-    for command in report.get("test_commands") or []:
+    for command in dict_entries(report.get("test_commands"), "verifier_report.test_commands", result):
         if command.get("status") == "fail" and report.get("verdict") == "approve":
             result.fail(f"done_gate: failed test command with approve verdict: {command.get('command')}")
     if grade == "HEAVY":
@@ -318,7 +320,7 @@ def contract_edit_gate(task_path: Path, root: Path, report: Dict[str, Any]) -> V
     unplanned_ok = {
         normalize_path(change.get("path", ""), root)
         for change in report.get("unplanned_changes") or []
-        if change.get("has_decision_event")
+        if isinstance(change, dict) and change.get("has_decision_event")
     }
     edits = {
         normalize_path(event.get("path", ""), root)
@@ -374,6 +376,19 @@ def corpus_quality_gate(task_path: Path) -> ValidationResult:
         if not review.get("rating"):
             result.fail("corpus_quality_gate: human_review rating is missing.")
     return result
+
+
+def dict_entries(items: Any, location: str, result: ValidationResult) -> List[Dict[str, Any]]:
+    """Gates must degrade malformed artifacts into failures, never crashes:
+    a hand-written spec with string list entries is a gate violation, not an
+    excuse for a traceback."""
+    entries = []
+    for idx, item in enumerate(items or []):
+        if isinstance(item, dict):
+            entries.append(item)
+        else:
+            result.fail(f"{location}[{idx}] must be a mapping with named fields, got {type(item).__name__}: {str(item)[:80]}")
+    return entries
 
 
 def required_file(path: Path, result: ValidationResult) -> None:
@@ -462,9 +477,17 @@ def validate_grounded_refs(spec: Dict[str, Any], task_path: Path, result: Valida
 
     repo_context = spec.get("repo_context", {})
     for idx, item in enumerate(repo_context.get("architectural_constraints") or []):
+        if not isinstance(item, dict):
+            result.fail(f"spec_gate: repo_context.architectural_constraints[{idx}] must be a mapping.")
+            continue
         check_ref(item.get("evidence_ref"), f"repo_context.architectural_constraints[{idx}].evidence_ref")
     for section_name, items in (spec.get("inferred_requirements") or {}).items():
         for idx, item in enumerate(items or []):
+            if not isinstance(item, dict):
+                result.fail(f"spec_gate: inferred_requirements.{section_name}[{idx}] must be a mapping.")
+                continue
             check_ref(item.get("evidence_ref"), f"inferred_requirements.{section_name}[{idx}].evidence_ref")
     for idx, item in enumerate(spec.get("risk_register") or []):
+        if not isinstance(item, dict):
+            continue
         check_ref(item.get("evidence_ref"), f"risk_register[{idx}].evidence_ref")

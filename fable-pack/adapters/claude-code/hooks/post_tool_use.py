@@ -41,4 +41,14 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except SystemExit:
+        raise
+    except Exception as exc:
+        # A pack bug must never crash the session or dump a traceback into
+        # the transcript; surface one line and stay non-blocking.
+        import sys as _sys
+
+        print(f"fable-pack hook error ({__file__.rsplit('/', 1)[-1]}): {exc}", file=_sys.stderr)
+        raise SystemExit(0)

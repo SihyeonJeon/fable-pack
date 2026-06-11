@@ -901,6 +901,52 @@ class PackSmokeTests(unittest.TestCase):
         self.assertEqual(tracelib.recording_mode(self.tmp), "off")
         self.assertFalse((self.tmp / "fable-disk" / "trace" / "ACTIVE").exists())
 
+    def test_malformed_string_entries_fail_gates_without_crashing(self) -> None:
+        task_path = tracelib.scaffold_task(
+            goal="malformed spec",
+            grade="STANDARD",
+            task_type="feature",
+            task_id="smoke-malformed",
+            model_id="fable",
+            root=self.tmp,
+        )
+        spec = tracelib.load_yaml(task_path / "task_spec" / "final.yaml")
+        spec["acceptance_criteria"] = ["tests pass", "docs updated"]
+        spec["risk_register"] = ["might break login"]
+        spec["rejected_alternatives"] = ["do nothing"]
+        tracelib.write_yaml(task_path / "task_spec" / "final.yaml", spec)
+        report = tracelib.load_yaml(task_path / "verifier_report.yaml")
+        report["risk_coverage"] = ["covered everything"]
+        tracelib.write_yaml(task_path / "verifier_report.yaml", report)
+
+        spec_result = validate.spec_gate(task_path, self.tmp)
+        done_result = validate.done_gate(task_path, self.tmp)
+        self.assertFalse(spec_result.ok)
+        self.assertFalse(done_result.ok)
+        all_errors = "\n".join(spec_result.errors + done_result.errors)
+        self.assertIn("acceptance_criteria[0] must be a mapping", all_errors)
+        self.assertIn("risk_register[0] must be a mapping", all_errors)
+        self.assertIn("risk_coverage[0] must be a mapping", all_errors)
+
+    def test_stop_hook_survives_malformed_trace_without_traceback(self) -> None:
+        tracelib.set_recording_mode("on", self.tmp)
+        task_path = tracelib.scaffold_task(
+            goal="crash guard",
+            grade="STANDARD",
+            task_type="feature",
+            task_id="smoke-crashguard",
+            model_id="fable",
+            root=self.tmp,
+        )
+        spec = tracelib.load_yaml(task_path / "task_spec" / "final.yaml")
+        spec["acceptance_criteria"] = ["just a string"]
+        tracelib.write_yaml(task_path / "task_spec" / "final.yaml", spec)
+        eventlib.log_edit(task_path, "Edit", {"file_path": "src/app.py"}, allowed=True)
+        result = self._run_hook("stop.py", {"hook_event_name": "Stop"})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertIn("must be a mapping", result.stderr)
+
     def test_cli_refuses_non_fable_reference_trace(self) -> None:
         script = ROOT / "fable-pack" / "adapters" / "claude-code" / "scripts" / "pack"
         env = os.environ.copy()
