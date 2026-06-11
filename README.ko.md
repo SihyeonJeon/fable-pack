@@ -8,6 +8,8 @@ Claude Code 세션의 엔지니어링 의사결정 기록과 품질 게이트
 
 기록 대상은 가시적 산출물만 — private chain of thought 미기록
 
+![게이트 흐름: 차단 → 스펙 작성 → 통과 → done → 타임라인](assets/gate-flow.gif)
+
 ## 설치
 
 ```text

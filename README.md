@@ -8,7 +8,7 @@ AI coding sessions vanish when they end — why requirements were read a certain
 
 Records visible artifacts only — never private chain of thought.
 
-![social preview](assets/social-preview.png)
+![gate flow: blocked edit, spec written, gates pass, done, timeline](assets/gate-flow.gif)
 
 ## Install
 
